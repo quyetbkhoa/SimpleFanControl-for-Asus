@@ -51,12 +51,7 @@ jobs:
 
       - name: Build solution
         shell: powershell
-        run: >
-          msbuild AsusFanControl.sln
-          /m
-          /t:Rebuild
-          /p:Configuration=Release
-          /p:Platform=x64
+        run: msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 /v:normal
 
       - name: Download PsExec from Microsoft Sysinternals
         id: pstools
