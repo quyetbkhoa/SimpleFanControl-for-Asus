@@ -54,7 +54,7 @@ jobs:
         run: |
           msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl /flp:logfile=build.log;verbosity=normal
           if ($LASTEXITCODE -ne 0) {
-            Get-Content build.log | Select-String -Pattern "error CS" -Context 1,1 | ForEach-Object { Write-Host $_ }
+            Get-Content build.log -Tail 100 | ForEach-Object { Write-Host $_ }
             exit 1
           }
 
