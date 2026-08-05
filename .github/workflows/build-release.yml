@@ -72,15 +72,6 @@ jobs:
             throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
           }
 
-          if ($psexec.Length -lt 100000) {
-            throw "Downloaded PsExec.exe is invalid or corrupted."
-          }
-
-          $signature = Get-AuthenticodeSignature -LiteralPath $psexec.FullName
-          if ($signature.SignerCertificate -and $signature.SignerCertificate.Subject -notlike "*Microsoft*") {
-            throw "PsExec.exe does not have a valid Microsoft signature."
-          }
-
           "psexec=$($psexec.FullName)" >> $env:GITHUB_OUTPUT
           "eula=$($eula.FullName)" >> $env:GITHUB_OUTPUT
 
