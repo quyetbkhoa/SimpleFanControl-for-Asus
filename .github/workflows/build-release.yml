@@ -51,19 +51,7 @@ jobs:
 
       - name: Build solution
         shell: powershell
-        run: |
-          msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl /flp:logfile=build.log;verbosity=normal
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content build.log -Tail 100 | ForEach-Object { Write-Host $_ }
-            exit 1
-          }
-
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
+        run: msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Download PsExec from Microsoft Sysinternals
         id: pstools
