@@ -51,12 +51,7 @@ jobs:
 
       - name: Build solution
         shell: powershell
-        run: |
-          $out = msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            $out | ForEach-Object { Write-Host $_ }
-            exit $LASTEXITCODE
-          }
+        run: msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Download PsExec from Microsoft Sysinternals
         id: pstools
