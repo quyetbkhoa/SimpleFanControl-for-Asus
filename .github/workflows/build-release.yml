@@ -67,6 +67,13 @@ jobs:
           $zip = Join-Path $env:RUNNER_TEMP "$releaseName.zip"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
+          if (Test-Path "bin") {
+            Write-Host "Contents of bin directory:"
+            Get-ChildItem -Path "bin" -Recurse | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
+          } else {
+            Write-Host "::error::bin directory does not exist!"
+          }
+
           $releaseFiles = @(
             "bin\x64\Release\AsusFanControl.exe",
             "bin\x64\Release\AsusFanControl.exe.config",
