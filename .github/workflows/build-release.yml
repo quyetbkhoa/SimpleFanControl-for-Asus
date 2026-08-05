@@ -53,34 +53,9 @@ jobs:
         shell: powershell
         run: msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
-      - name: Download PsExec from Microsoft Sysinternals
-        id: pstools
-        shell: powershell
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP "PSTools.zip"
-          $destination = Join-Path $env:RUNNER_TEMP "PSTools"
-          Invoke-WebRequest `
-            -Uri "https://download.sysinternals.com/files/PSTools.zip" `
-            -OutFile $archive
-          Expand-Archive -LiteralPath $archive -DestinationPath $destination
-
-          $psexec = Get-ChildItem -LiteralPath $destination -Recurse -Filter "PsExec.exe" |
-            Select-Object -First 1
-          $eula = Get-ChildItem -LiteralPath $destination -Recurse -Filter "Eula.txt" |
-            Select-Object -First 1
-          if (-not $psexec -or -not $eula) {
-            throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
-          }
-
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "psexec=$($psexec.FullName)" -Encoding UTF8
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "eula=$($eula.FullName)" -Encoding UTF8
-
       - name: Create release ZIP
         id: package
         shell: powershell
-        env:
-          PSEXEC_PATH: ${{ steps.pstools.outputs.psexec }}
-          PSTOOLS_EULA_PATH: ${{ steps.pstools.outputs.eula }}
         run: |
           $releaseName = if ($env:GITHUB_REF_TYPE -eq "tag") {
             "SimpleFanControl-for-Asus-$env:GITHUB_REF_NAME-win-x64"
@@ -111,9 +86,21 @@ jobs:
             Copy-Item -LiteralPath $file -Destination $stage
           }
 
-          Copy-Item -LiteralPath $env:PSEXEC_PATH -Destination $stage
-          Copy-Item -LiteralPath $env:PSTOOLS_EULA_PATH `
-            -Destination (Join-Path $stage "PSTools-Eula.txt")
+          $archive = Join-Path $env:RUNNER_TEMP "PSTools.zip"
+          $pstoolsDir = Join-Path $env:RUNNER_TEMP "PSTools"
+          Invoke-WebRequest `
+            -Uri "https://download.sysinternals.com/files/PSTools.zip" `
+            -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $pstoolsDir -Force
+
+          $psexec = Get-ChildItem -LiteralPath $pstoolsDir -Recurse -Filter "PsExec.exe" | Select-Object -First 1
+          $eula = Get-ChildItem -LiteralPath $pstoolsDir -Recurse -Filter "Eula.txt" | Select-Object -First 1
+          if (-not $psexec -or -not $eula) {
+            throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
+          }
+
+          Copy-Item -LiteralPath $psexec.FullName -Destination $stage
+          Copy-Item -LiteralPath $eula.FullName -Destination (Join-Path $stage "PSTools-Eula.txt")
           Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $stage "LICENSE.txt")
           Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
 
