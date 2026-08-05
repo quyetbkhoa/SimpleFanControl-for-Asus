@@ -104,8 +104,10 @@ jobs:
 
           foreach ($file in $releaseFiles) {
             if (-not (Test-Path -LiteralPath $file)) {
+              Write-Host "::error::Required release file is missing: $file"
               throw "Required release file is missing: $file"
             }
+            Write-Host "Adding to release: $file"
             Copy-Item -LiteralPath $file -Destination $stage
           }
 
