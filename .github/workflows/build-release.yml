@@ -53,7 +53,8 @@ jobs:
         run: |
           msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl /flp:logfile=msbuild.log
           if ($LASTEXITCODE -ne 0) {
-            Get-Content msbuild.log -Tail 100
+            Write-Host "=== MSBUILD LOG ==="
+            Get-Content msbuild.log | ForEach-Object { Write-Host $_ }
             exit $LASTEXITCODE
           }
 
