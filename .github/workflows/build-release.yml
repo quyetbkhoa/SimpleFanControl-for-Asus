@@ -57,7 +57,6 @@ jobs:
           /t:Rebuild
           /p:Configuration=Release
           /p:Platform=x64
-          /p:ContinuousIntegrationBuild=true
 
       - name: Download PsExec from Microsoft Sysinternals
         id: pstools
