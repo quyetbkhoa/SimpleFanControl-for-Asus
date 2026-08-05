@@ -51,7 +51,7 @@ jobs:
       - name: Build solution
         shell: powershell
         run: |
-          msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl /flp:logfile=msbuild.log
+          msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl
           if ($LASTEXITCODE -ne 0) {
             Write-Host "=== MSBUILD LOG ==="
             Get-Content msbuild.log | ForEach-Object { Write-Host $_ }
