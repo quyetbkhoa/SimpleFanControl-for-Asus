@@ -75,11 +75,10 @@ jobs:
 
           $releaseFiles = @(
             "bin\x64\Release\AsusFanControl.exe",
-            "bin\x64\Release\AsusFanControl.exe.config",
-            "bin\x64\Release\AsusWinIO64.dll",
+            "AsusFanControl\AsusWinIO64.dll",
             "bin\x64\Release\SimpleFanControlForAsus.exe",
             "bin\x64\Release\SimpleFanControlForAsus.exe.config",
-            "bin\x64\Release\run.bat",
+            "AsusFanControlGUI\run.bat",
             "packaging\README-EN-VI.txt"
           )
 
@@ -90,6 +89,10 @@ jobs:
             }
             Write-Host "Adding to release: $file"
             Copy-Item -LiteralPath $file -Destination $stage
+          }
+
+          if (Test-Path "bin\x64\Release\AsusFanControl.exe.config") {
+            Copy-Item -LiteralPath "bin\x64\Release\AsusFanControl.exe.config" -Destination $stage
           }
 
           $archive = Join-Path $env:RUNNER_TEMP "PSTools.zip"
