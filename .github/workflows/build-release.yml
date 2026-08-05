@@ -44,8 +44,7 @@ jobs:
 
           foreach ($file in $assemblyInfoFiles) {
             $content = Get-Content -LiteralPath $file -Raw
-            $content = $content -replace '(?m)^\[assembly:\s*AssemblyVersion\("[^"]+"\)\s*\]', "[assembly: AssemblyVersion(`"$version`")]"
-            $content = $content -replace '(?m)^\[assembly:\s*AssemblyFileVersion\("[^"]+"\)\s*\]', "[assembly: AssemblyFileVersion(`"$version`")]"
+            $content = $content -replace '"2\.\d+\.\d+\.0"', "`"$version`""
             Set-Content -LiteralPath $file -Value $content -Encoding UTF8
           }
 
