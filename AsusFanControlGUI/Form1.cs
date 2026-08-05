@@ -289,9 +289,17 @@ namespace AsusFanControlGUI
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
             stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.334F));
-            stats.Controls.Add(CreateStatCard("CPU TEMPERATURE", "°C", out statCpuTempTitleLabel, out labelCpuTemperature, 0), 0, 0);
-            stats.Controls.Add(CreateStatCard("FAN SPEED", "RPM", out statFanRpmTitleLabel, out labelFanRpm, 8), 1, 0);
-            stats.Controls.Add(CreateStatCard("APPLIED OUTPUT", "TARGET", out statAppliedSpeedTitleLabel, out labelAppliedSpeed, 8), 2, 0);
+            statCpuTempTitleLabel = CreateLabel("CPU TEMPERATURE", 8, FontStyle.Bold, TextSecondary);
+            labelCpuTemperature = CreateLabel("—", 20, FontStyle.Bold, DarkBlue);
+            stats.Controls.Add(CreateStatCard(statCpuTempTitleLabel, labelCpuTemperature, "°C", 0), 0, 0);
+
+            statFanRpmTitleLabel = CreateLabel("FAN SPEED", 8, FontStyle.Bold, TextSecondary);
+            labelFanRpm = CreateLabel("—", 20, FontStyle.Bold, DarkBlue);
+            stats.Controls.Add(CreateStatCard(statFanRpmTitleLabel, labelFanRpm, "RPM", 8), 1, 0);
+
+            statAppliedSpeedTitleLabel = CreateLabel("APPLIED OUTPUT", 8, FontStyle.Bold, TextSecondary);
+            labelAppliedSpeed = CreateLabel("—", 20, FontStyle.Bold, DarkBlue);
+            stats.Controls.Add(CreateStatCard(statAppliedSpeedTitleLabel, labelAppliedSpeed, "TARGET", 8), 2, 0);
 
             var controlCard = BuildControlCard();
             var curveCard = BuildCurveCard();
@@ -454,47 +462,47 @@ namespace AsusFanControlGUI
                 Width = 170
             };
 
+            settingStartWithWinTitleLabel = CreateLabel("Start with Windows", 10, FontStyle.Bold, TextPrimary);
+            settingStartWithWinDescLabel = CreateLabel("Launch after sign-in using Scheduled Task.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Start with Windows",
-                "Launch after sign-in using Scheduled Task.",
-                toggleStartWithWindows,
-                out settingStartWithWinTitleLabel,
-                out settingStartWithWinDescLabel));
+                settingStartWithWinTitleLabel,
+                settingStartWithWinDescLabel,
+                toggleStartWithWindows));
 
+            settingPollingTitleLabel = CreateLabel("Polling interval", 10, FontStyle.Bold, TextPrimary);
+            settingPollingDescLabel = CreateLabel("Refresh temperature and RPM. Default: 2s.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Polling interval",
-                "Refresh temperature and RPM. Default: 2s.",
-                pollingComboBox,
-                out settingPollingTitleLabel,
-                out settingPollingDescLabel));
+                settingPollingTitleLabel,
+                settingPollingDescLabel,
+                pollingComboBox));
 
+            settingAutoRefreshTitleLabel = CreateLabel("Auto-refresh statistics", 10, FontStyle.Bold, TextPrimary);
+            settingAutoRefreshDescLabel = CreateLabel("Continuously update dashboard data.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Auto-refresh statistics",
-                "Continuously update dashboard data.",
-                toggleAutoRefresh,
-                out settingAutoRefreshTitleLabel,
-                out settingAutoRefreshDescLabel));
+                settingAutoRefreshTitleLabel,
+                settingAutoRefreshDescLabel,
+                toggleAutoRefresh));
 
+            settingMinToTrayTitleLabel = CreateLabel("Minimize to system tray", 10, FontStyle.Bold, TextPrimary);
+            settingMinToTrayDescLabel = CreateLabel("Close keeps the app running in tray.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Minimize to system tray",
-                "Close keeps the app running in tray.",
-                toggleMinimizeToTray,
-                out settingMinToTrayTitleLabel,
-                out settingMinToTrayDescLabel));
+                settingMinToTrayTitleLabel,
+                settingMinToTrayDescLabel,
+                toggleMinimizeToTray));
 
+            settingTurnOffExitTitleLabel = CreateLabel("Reset fan control on exit", 10, FontStyle.Bold, TextPrimary);
+            settingTurnOffExitDescLabel = CreateLabel("Return fans to ASUS firmware.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Reset fan control on exit",
-                "Return fans to ASUS firmware.",
-                toggleTurnOffOnExit,
-                out settingTurnOffExitTitleLabel,
-                out settingTurnOffExitDescLabel));
+                settingTurnOffExitTitleLabel,
+                settingTurnOffExitDescLabel,
+                toggleTurnOffOnExit));
 
+            settingSafeLimitsTitleLabel = CreateLabel("Safe output limits", 10, FontStyle.Bold, TextPrimary);
+            settingSafeLimitsDescLabel = CreateLabel("Limit commands to 40–99%.", 8, FontStyle.Regular, TextSecondary);
             settingsList.Controls.Add(CreateSettingRow(
-                "Safe output limits",
-                "Limit commands to 40–99%.",
-                toggleSafeSettings,
-                out settingSafeLimitsTitleLabel,
-                out settingSafeLimitsDescLabel));
+                settingSafeLimitsTitleLabel,
+                settingSafeLimitsDescLabel,
+                toggleSafeSettings));
 
             var actions = new ModernCard { Height = 82, Width = 700 };
             settingsRefreshButton = CreateButton("Refresh", true);
@@ -1185,10 +1193,9 @@ namespace AsusFanControlGUI
         }
 
         private ModernCard CreateStatCard(
-            string title,
+            Label titleLabel,
+            Label valueLabel,
             string unit,
-            out Label titleLabel,
-            out Label valueLabel,
             int leftMargin)
         {
             var card = new ModernCard
@@ -1196,10 +1203,8 @@ namespace AsusFanControlGUI
                 Dock = DockStyle.Fill,
                 Margin = new Padding(leftMargin, 0, 0, 0)
             };
-            titleLabel = CreateLabel(title, 8, FontStyle.Bold, TextSecondary);
             titleLabel.Location = new Point(18, 15);
             titleLabel.AutoSize = true;
-            valueLabel = CreateLabel("—", 20, FontStyle.Bold, DarkBlue);
             valueLabel.Location = new Point(18, 39);
             valueLabel.AutoSize = true;
             var unitLabel = CreateLabel(unit, 8, FontStyle.Bold, TextSecondary);
@@ -1217,17 +1222,13 @@ namespace AsusFanControlGUI
         }
 
         private ModernCard CreateSettingRow(
-            string title,
-            string description,
-            Control action,
-            out Label titleLabel,
-            out Label descriptionLabel)
+            Label titleLabel,
+            Label descriptionLabel,
+            Control action)
         {
             var row = new ModernCard { Height = 74, Width = 700 };
-            titleLabel = CreateLabel(title, 10, FontStyle.Bold, TextPrimary);
             titleLabel.Location = new Point(18, 14);
             titleLabel.AutoSize = true;
-            descriptionLabel = CreateLabel(description, 8, FontStyle.Regular, TextSecondary);
             descriptionLabel.Location = new Point(19, 39);
             descriptionLabel.AutoSize = true;
             action.Anchor = AnchorStyles.Top | AnchorStyles.Right;
