@@ -1062,7 +1062,7 @@ namespace AsusFanControlGUI
 
                 var requestedSpeed = ApplySafetyLimits(
                     fanCurveControl.Curve.GetFanSpeed(temperature));
-                SetCurveStatusState(CurveStatusState.TargetInfo, temperature, requestedSpeed);
+                SetCurveStatusState(CurveStatusState.TargetInfo, (int)temperature, requestedSpeed);
 
                 if (toggleFanControl.Checked)
                     ApplyFanSpeed(requestedSpeed);
