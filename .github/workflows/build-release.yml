@@ -51,7 +51,7 @@ jobs:
 
       - name: Build solution
         shell: powershell
-        run: msbuild AsusFanControl.sln /m /t:Rebuild /p:Configuration=Release /p:Platform=x64
+        run: msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64
 
       - name: Create release ZIP
         id: package
