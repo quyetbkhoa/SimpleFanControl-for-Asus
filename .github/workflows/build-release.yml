@@ -72,8 +72,8 @@ jobs:
             throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
           }
 
-          "psexec=$($psexec.FullName)" >> $env:GITHUB_OUTPUT
-          "eula=$($eula.FullName)" >> $env:GITHUB_OUTPUT
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "psexec=$($psexec.FullName)" -Encoding UTF8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "eula=$($eula.FullName)" -Encoding UTF8
 
       - name: Create release ZIP
         id: package
@@ -117,8 +117,8 @@ jobs:
           Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $stage "LICENSE.txt")
           Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
 
-          "zip=$zip" >> $env:GITHUB_OUTPUT
-          "name=$releaseName" >> $env:GITHUB_OUTPUT
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
