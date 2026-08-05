@@ -1,0 +1,175 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows x64
+    runs-on: windows-latest
+    outputs:
+      artifact_name: ${{ steps.package.outputs.name }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set assembly version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^v(\d+)\.(\d+)(?:\.(\d+))?$') {
+            throw "Release tags must look like v2.1 or v2.1.0."
+          }
+
+          $patch = if ($Matches[3]) { $Matches[3] } else { "0" }
+          $version = "$($Matches[1]).$($Matches[2]).$patch.0"
+          $assemblyInfoFiles = @(
+            "AsusFanControl\Properties\AssemblyInfo.cs",
+            "AsusFanControlGUI\Properties\AssemblyInfo.cs"
+          )
+
+          foreach ($file in $assemblyInfoFiles) {
+            $content = Get-Content -LiteralPath $file -Raw
+            $content = $content -replace 'AssemblyVersion\("[^"]+"\)', "AssemblyVersion(`"$version`")"
+            $content = $content -replace 'AssemblyFileVersion\("[^"]+"\)', "AssemblyFileVersion(`"$version`")"
+            Set-Content -LiteralPath $file -Value $content -Encoding UTF8
+          }
+
+      - name: Build solution
+        shell: powershell
+        run: >
+          msbuild AsusFanControl.sln
+          /m
+          /t:Rebuild
+          /p:Configuration=Release
+          /p:Platform=x64
+          /p:ContinuousIntegrationBuild=true
+
+      - name: Download PsExec from Microsoft Sysinternals
+        id: pstools
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "PSTools.zip"
+          $destination = Join-Path $env:RUNNER_TEMP "PSTools"
+          Invoke-WebRequest `
+            -Uri "https://download.sysinternals.com/files/PSTools.zip" `
+            -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $destination
+
+          $psexec = Get-ChildItem -LiteralPath $destination -Recurse -Filter "PsExec.exe" |
+            Select-Object -First 1
+          $eula = Get-ChildItem -LiteralPath $destination -Recurse -Filter "Eula.txt" |
+            Select-Object -First 1
+          if (-not $psexec -or -not $eula) {
+            throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $psexec.FullName
+          if ($signature.Status -ne "Valid" -or
+              $signature.SignerCertificate.Subject -notlike "*Microsoft*") {
+            throw "PsExec.exe does not have a valid Microsoft signature."
+          }
+
+          "psexec=$($psexec.FullName)" >> $env:GITHUB_OUTPUT
+          "eula=$($eula.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Create release ZIP
+        id: package
+        shell: powershell
+        env:
+          PSEXEC_PATH: ${{ steps.pstools.outputs.psexec }}
+          PSTOOLS_EULA_PATH: ${{ steps.pstools.outputs.eula }}
+        run: |
+          $releaseName = if ($env:GITHUB_REF_TYPE -eq "tag") {
+            "SimpleFanControl-for-Asus-$env:GITHUB_REF_NAME-win-x64"
+          } else {
+            "SimpleFanControl-for-Asus-ci-$($env:GITHUB_SHA.Substring(0, 7))-win-x64"
+          }
+
+          $stage = Join-Path $env:RUNNER_TEMP $releaseName
+          $zip = Join-Path $env:RUNNER_TEMP "$releaseName.zip"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
+          $releaseFiles = @(
+            "bin\x64\Release\AsusFanControl.exe",
+            "bin\x64\Release\AsusFanControl.exe.config",
+            "bin\x64\Release\AsusWinIO64.dll",
+            "bin\x64\Release\SimpleFanControlForAsus.exe",
+            "bin\x64\Release\SimpleFanControlForAsus.exe.config",
+            "bin\x64\Release\run.bat",
+            "packaging\README-EN-VI.txt"
+          )
+
+          foreach ($file in $releaseFiles) {
+            if (-not (Test-Path -LiteralPath $file)) {
+              throw "Required release file is missing: $file"
+            }
+            Copy-Item -LiteralPath $file -Destination $stage
+          }
+
+          Copy-Item -LiteralPath $env:PSEXEC_PATH -Destination $stage
+          Copy-Item -LiteralPath $env:PSTOOLS_EULA_PATH `
+            -Destination (Join-Path $stage "PSTools-Eula.txt")
+          Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $stage "LICENSE.txt")
+          Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
+
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "name=$releaseName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.zip }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: release
+
+      - name: Publish release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $zip = Get-ChildItem -LiteralPath "release" -Filter "*.zip" |
+            Select-Object -First 1
+          if (-not $zip) {
+            throw "The release ZIP was not downloaded."
+          }
+
+          $null = gh release view $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:GITHUB_REF_NAME $zip.FullName --clobber
+          } else {
+            gh release create $env:GITHUB_REF_NAME $zip.FullName `
+              --title "SimpleFanControl for Asus $env:GITHUB_REF_NAME" `
+              --generate-notes `
+              --verify-tag
+          }
