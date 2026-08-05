@@ -50,7 +50,12 @@ jobs:
 
       - name: Build solution
         shell: powershell
-        run: msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64
+        run: |
+          msbuild AsusFanControl.sln /t:Rebuild /p:Configuration=Release /p:Platform=x64 /fl /flp:logfile=msbuild.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content msbuild.log -Tail 100
+            exit $LASTEXITCODE
+          }
 
       - name: Create release ZIP
         id: package
