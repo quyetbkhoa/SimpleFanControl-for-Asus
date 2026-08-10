@@ -121,13 +121,22 @@ jobs:
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          $isccPath = (Get-ChildItem -Path "C:\Program Files*", "C:\ProgramData\chocolatey", "C:\tools" -Filter "ISCC.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName -First 1)
+          $paths = @(
+            "C:\ProgramData\chocolatey\bin\iscc.exe",
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe",
+            "C:\tools\InnoSetup\ISCC.exe"
+          )
+          $isccPath = $null
+          foreach ($p in $paths) {
+            if (Test-Path $p) { $isccPath = $p; break }
+          }
           if (-not $isccPath) {
             $isccCmd = Get-Command iscc -ErrorAction SilentlyContinue
             if ($isccCmd) { $isccPath = $isccCmd.Source }
           }
           if (-not $isccPath) {
-            throw "ISCC.exe compiler was not found on the system."
+            throw "ISCC compiler path not found!"
           }
           Write-Host "Executing ISCC at: $isccPath"
           & $isccPath "packaging\installer.iss"
