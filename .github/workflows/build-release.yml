@@ -118,12 +118,24 @@ jobs:
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
-          if ($iscc) {
-            & $iscc packaging/installer.iss
-          } else {
-            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging/installer.iss
+          $isccCmd = Get-Command iscc -ErrorAction SilentlyContinue
+          $isccPath = if ($isccCmd) { $isccCmd.Source } else { $null }
+          if (-not $isccPath) {
+            $paths = @(
+              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+              "C:\Program Files\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+            )
+            foreach ($p in $paths) {
+              if (Test-Path $p) { $isccPath = $p; break }
+            }
           }
+          if (-not $isccPath) {
+            throw "ISCC.exe compiler was not found."
+          }
+          Write-Host "Compiling installer with: $isccPath"
+          & $isccPath packaging/installer.iss
 
       - name: Copy Setup installer artifact
         id: setup_package
