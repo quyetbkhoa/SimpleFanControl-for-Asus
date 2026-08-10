@@ -106,8 +106,21 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
-      - name: Setup Inno Setup
-        uses: dmitriy-kovalenko/setup-iscc@v1.4.1
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+            Write-Host "Installing Inno Setup via Chocolatey..."
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $isccPath)) {
+            $isccPath = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $isccPath)) {
+            throw "ISCC.exe not found after installation!"
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "ISCC_PATH=$isccPath"
 
       - name: Prepare Release Directory for Inno Setup
         shell: powershell
@@ -119,7 +132,11 @@ jobs:
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          iscc packaging/installer.iss
+          Write-Host "Running ISCC at: $env:ISCC_PATH"
+          & "$env:ISCC_PATH" "packaging\installer.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "ISCC compilation failed with exit code $LASTEXITCODE"
+          }
 
       - name: Copy Setup installer artifact
         id: setup_package
