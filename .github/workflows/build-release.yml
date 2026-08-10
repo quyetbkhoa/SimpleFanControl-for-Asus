@@ -106,10 +106,15 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
-      - name: Install Inno Setup
-        uses: dswistowski/iscc-action@v1
-        with:
-          scripthref: packaging/installer.iss
+      - name: Build Inno Setup Installer
+        shell: powershell
+        run: |
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+          if ($iscc) {
+            & $iscc packaging/installer.iss
+          } else {
+            & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging/installer.iss
+          }
 
       - name: Copy Setup installer artifact
         id: setup_package
