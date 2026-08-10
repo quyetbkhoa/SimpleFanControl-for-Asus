@@ -107,12 +107,14 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
       - name: Install Inno Setup
-        uses: ISCC-Action/setup-inno-setup@v1
+        shell: powershell
+        run: |
+          choco install innosetup --no-progress -y
 
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          iscc packaging/installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging/installer.iss
 
       - name: Copy Setup installer artifact
         id: setup_package
