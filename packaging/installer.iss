@@ -1,6 +1,6 @@
 ; Script Inno Setup cho SimpleFanControl for Asus
 #define MyAppName "SimpleFanControl for Asus"
-#define MyAppVersion "2.5.5"
+#define MyAppVersion "2.5.6"
 #define MyAppPublisher "quyetbkhoa"
 #define MyAppURL "https://github.com/quyetbkhoa/SimpleFanControl-for-Asus"
 #define MyAppExeName "SimpleFanControlForAsus.exe"
@@ -35,8 +35,8 @@ Source: "..\bin\x64\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesu
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninsexe}"
+Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninsexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
