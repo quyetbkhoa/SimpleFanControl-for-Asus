@@ -111,6 +111,13 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
 
+      - name: Prepare Release Directory for Inno Setup
+        shell: powershell
+        run: |
+          Copy-Item -LiteralPath "AsusFanControl\AsusWinIO64.dll" -Destination "bin\x64\Release\" -Force
+          Copy-Item -LiteralPath "packaging\README-EN-VI.txt" -Destination "bin\x64\Release\" -Force
+          Copy-Item -LiteralPath "LICENSE" -Destination "bin\x64\Release\LICENSE.txt" -Force
+
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
@@ -131,6 +138,9 @@ jobs:
           }
           Write-Host "Using ISCC at: $isccPath"
           & $isccPath packaging/installer.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "ISCC compiler failed with exit code $LASTEXITCODE"
+          }
 
       - name: Copy Setup installer artifact
         id: setup_package

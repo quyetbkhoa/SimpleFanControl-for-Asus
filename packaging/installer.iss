@@ -1,6 +1,6 @@
 ; Script Inno Setup cho SimpleFanControl for Asus
 #define MyAppName "SimpleFanControl for Asus"
-#define MyAppVersion "2.4.7"
+#define MyAppVersion "2.4.8"
 #define MyAppPublisher "quyetbkhoa"
 #define MyAppURL "https://github.com/quyetbkhoa/SimpleFanControl-for-Asus"
 #define MyAppExeName "SimpleFanControlForAsus.exe"
@@ -32,12 +32,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\bin\x64\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\bin\x64\Release\SimpleFanControlForAsus.exe.config"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\bin\x64\Release\AsusFanControl.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\bin\x64\Release\AsusFanControl.exe.config"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\AsusFanControl\AsusWinIO64.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "README-EN-VI.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\bin\x64\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
