@@ -125,6 +125,7 @@ jobs:
       - name: Prepare Release Directory for Inno Setup
         shell: powershell
         run: |
+          New-Item -ItemType Directory -Force -Path "packaging\Output"
           Copy-Item -LiteralPath "AsusFanControl\AsusWinIO64.dll" -Destination "bin\x64\Release\" -Force
           Copy-Item -LiteralPath "packaging\README-EN-VI.txt" -Destination "bin\x64\Release\" -Force
           Copy-Item -LiteralPath "LICENSE" -Destination "bin\x64\Release\LICENSE.txt" -Force
@@ -133,9 +134,26 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Running ISCC at: $env:ISCC_PATH"
-          & "$env:ISCC_PATH" "packaging\installer.iss"
-          if ($LASTEXITCODE -ne 0) {
-            throw "ISCC compilation failed with exit code $LASTEXITCODE"
+          $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+          $pinfo.FileName = $env:ISCC_PATH
+          $pinfo.Arguments = "packaging\installer.iss"
+          $pinfo.RedirectStandardOutput = $true
+          $pinfo.RedirectStandardError = $true
+          $pinfo.UseShellExecute = $false
+          $pinfo.CreateNoWindow = $true
+          $p = New-Object System.Diagnostics.Process
+          $p.StartInfo = $pinfo
+          $p.Start() | Out-Null
+          $stdout = $p.StandardOutput.ReadToEnd()
+          $stderr = $p.StandardError.ReadToEnd()
+          $p.WaitForExit()
+          Write-Host "--- ISCC STDOUT ---"
+          Write-Host $stdout
+          Write-Host "--- ISCC STDERR ---"
+          Write-Host $stderr
+          Write-Host "ExitCode: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) {
+            throw "ISCC compiler failed with exit code $($p.ExitCode)"
           }
 
       - name: Copy Setup installer artifact
