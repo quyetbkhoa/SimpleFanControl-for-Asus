@@ -107,35 +107,12 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
       - name: Install Inno Setup
-        shell: powershell
-        run: |
-          choco install innosetup --no-progress -y
-          $innoDir = "C:\Program Files (x86)\Inno Setup 6"
-          if (Test-Path $innoDir) {
-            Add-Content -Path $env:GITHUB_PATH -Value $innoDir
-          }
+        uses: ISCC-Action/setup-inno-setup@v1
 
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          $isccCmd = Get-Command iscc -ErrorAction SilentlyContinue
-          $isccPath = if ($isccCmd) { $isccCmd.Source } else { $null }
-          if (-not $isccPath) {
-            $paths = @(
-              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-              "C:\Program Files\Inno Setup 6\ISCC.exe",
-              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-              "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-            )
-            foreach ($p in $paths) {
-              if (Test-Path $p) { $isccPath = $p; break }
-            }
-          }
-          if (-not $isccPath) {
-            throw "ISCC.exe compiler was not found."
-          }
-          Write-Host "Compiling installer with: $isccPath"
-          & $isccPath packaging/installer.iss
+          iscc packaging/installer.iss
 
       - name: Copy Setup installer artifact
         id: setup_package
