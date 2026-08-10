@@ -1,6 +1,6 @@
 ; Script Inno Setup cho SimpleFanControl for Asus
 #define MyAppName "SimpleFanControl for Asus"
-#define MyAppVersion "2.5.2"
+#define MyAppVersion "2.5.3"
 #define MyAppPublisher "quyetbkhoa"
 #define MyAppURL "https://github.com/quyetbkhoa/SimpleFanControl-for-Asus"
 #define MyAppExeName "SimpleFanControlForAsus.exe"
@@ -22,7 +22,6 @@ OutputBaseFilename=SimpleFanControlForAsus_Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
 
 [Languages]
