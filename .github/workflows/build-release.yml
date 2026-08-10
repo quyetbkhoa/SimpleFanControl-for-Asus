@@ -121,25 +121,18 @@ jobs:
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
-          $isccCmd = Get-Command iscc -ErrorAction SilentlyContinue
-          $isccPath = if ($isccCmd) { $isccCmd.Source } else { $null }
+          $isccPath = (Get-ChildItem -Path "C:\Program Files*", "C:\ProgramData\chocolatey", "C:\tools" -Filter "ISCC.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName -First 1)
           if (-not $isccPath) {
-            $candidates = @(
-              "C:\Program Files\Inno Setup 6\ISCC.exe",
-              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-              "C:\ProgramData\chocolatey\bin\iscc.exe"
-            )
-            foreach ($c in $candidates) {
-              if (Test-Path $c) { $isccPath = $c; break }
-            }
+            $isccCmd = Get-Command iscc -ErrorAction SilentlyContinue
+            if ($isccCmd) { $isccPath = $isccCmd.Source }
           }
           if (-not $isccPath) {
-            throw "ISCC compiler path not found on runner!"
+            throw "ISCC.exe compiler was not found on the system."
           }
-          Write-Host "Using ISCC at: $isccPath"
-          & $isccPath packaging/installer.iss
+          Write-Host "Executing ISCC at: $isccPath"
+          & $isccPath "packaging\installer.iss"
           if ($LASTEXITCODE -ne 0) {
-            throw "ISCC compiler failed with exit code $LASTEXITCODE"
+            throw "ISCC compilation failed with exit code $LASTEXITCODE"
           }
 
       - name: Copy Setup installer artifact

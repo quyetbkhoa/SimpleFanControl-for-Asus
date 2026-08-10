@@ -1,6 +1,6 @@
 ; Script Inno Setup cho SimpleFanControl for Asus
 #define MyAppName "SimpleFanControl for Asus"
-#define MyAppVersion "2.4.8"
+#define MyAppVersion "2.4.9"
 #define MyAppPublisher "quyetbkhoa"
 #define MyAppURL "https://github.com/quyetbkhoa/SimpleFanControl-for-Asus"
 #define MyAppExeName "SimpleFanControlForAsus.exe"
