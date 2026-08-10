@@ -119,14 +119,35 @@ jobs:
           Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $stage "LICENSE.txt")
           Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
 
+          # Copy PsExec.exe to bin\x64\Release for Inno Setup compiler
+          Copy-Item -LiteralPath $psexec.FullName -Destination "bin\x64\Release\PsExec.exe"
+
           Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
+
+      - name: Install Inno Setup
+        uses: dswistowski/iscc-action@v1
+        with:
+          scripthref: packaging/installer.iss
+
+      - name: Copy Setup installer artifact
+        id: setup_package
+        shell: powershell
+        run: |
+          $setupFile = "packaging\Output\SimpleFanControlForAsus_Setup.exe"
+          if (Test-Path $setupFile) {
+            $destSetup = Join-Path $env:RUNNER_TEMP "SimpleFanControlForAsus_Setup.exe"
+            Copy-Item -LiteralPath $setupFile -Destination $destSetup
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "setup=$destSetup" -Encoding UTF8
+          }
 
       - name: Upload CI artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.name }}
-          path: ${{ steps.package.outputs.zip }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            packaging/Output/SimpleFanControlForAsus_Setup.exe
           if-no-files-found: error
 
   release:
@@ -150,18 +171,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $zip = Get-ChildItem -LiteralPath "release" -Filter "*.zip" |
-            Select-Object -First 1
-          if (-not $zip) {
-            throw "The release ZIP was not downloaded."
+          $releaseFiles = Get-ChildItem -LiteralPath "release" | Select-Object -ExpandProperty FullName
+          if (-not $releaseFiles) {
+            throw "The release artifacts were not downloaded."
           }
 
           $null = gh release view $env:GITHUB_REF_NAME
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:GITHUB_REF_NAME $zip.FullName --clobber
+            gh release upload $env:GITHUB_REF_NAME $releaseFiles --clobber
           } else {
-            gh release create $env:GITHUB_REF_NAME $zip.FullName `
+            gh release create $env:GITHUB_REF_NAME $releaseFiles `
               --title "SimpleFanControl for Asus $env:GITHUB_REF_NAME" `
               --generate-notes `
               --verify-tag
           }
+
