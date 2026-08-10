@@ -106,6 +106,15 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8
 
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          choco install innosetup --no-progress -y
+          $innoDir = "C:\Program Files (x86)\Inno Setup 6"
+          if (Test-Path $innoDir) {
+            Add-Content -Path $env:GITHUB_PATH -Value $innoDir
+          }
+
       - name: Build Inno Setup Installer
         shell: powershell
         run: |
