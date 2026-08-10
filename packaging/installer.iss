@@ -1,6 +1,6 @@
 ; Script Inno Setup cho SimpleFanControl for Asus
 #define MyAppName "SimpleFanControl for Asus"
-#define MyAppVersion "2.3.0"
+#define MyAppVersion "2.4.0"
 #define MyAppPublisher "quyetbkhoa"
 #define MyAppURL "https://github.com/quyetbkhoa/SimpleFanControl-for-Asus"
 #define MyAppExeName "SimpleFanControlForAsus.exe"
@@ -37,9 +37,7 @@ Source: "..\bin\x64\Release\SimpleFanControlForAsus.exe.config"; DestDir: "{app}
 Source: "..\bin\x64\Release\AsusFanControl.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\bin\x64\Release\AsusFanControl.exe.config"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('{src}\..\bin\x64\Release\AsusFanControl.exe.config'))
 Source: "..\AsusFanControl\AsusWinIO64.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\AsusFanControlGUI\run.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README-EN-VI.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\bin\x64\Release\PsExec.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('{src}\..\bin\x64\Release\PsExec.exe'))
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

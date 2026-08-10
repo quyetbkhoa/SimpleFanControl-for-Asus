@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Forms;
 
 namespace AsusFanControlGUI
 {
@@ -24,16 +25,10 @@ namespace AsusFanControlGUI
                 return;
             }
 
-            var launcherPath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "run.bat");
-            if (!File.Exists(launcherPath))
-                throw new FileNotFoundException(
-                    "run.bat must be next to the application.", launcherPath);
-
-            var taskCommand = "cmd.exe /c \"\"" + launcherPath + "\"\"";
+            var exePath = Application.ExecutablePath;
             var arguments = "/Create /F /TN " + Quote(TaskName) +
                             " /SC ONLOGON /DELAY 0000:10 /RU SYSTEM /RL HIGHEST /TR " +
-                            Quote(taskCommand);
+                            Quote(exePath);
 
             if (RunSchtasks(arguments, true) != 0)
                 throw new InvalidOperationException("Windows could not create the startup task.");

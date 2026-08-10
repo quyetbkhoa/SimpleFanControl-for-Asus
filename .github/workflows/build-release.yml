@@ -84,7 +84,6 @@ jobs:
             "AsusFanControl\AsusWinIO64.dll",
             "bin\x64\Release\SimpleFanControlForAsus.exe",
             "bin\x64\Release\SimpleFanControlForAsus.exe.config",
-            "AsusFanControlGUI\run.bat",
             "packaging\README-EN-VI.txt"
           )
 
@@ -101,26 +100,8 @@ jobs:
             Copy-Item -LiteralPath "bin\x64\Release\AsusFanControl.exe.config" -Destination $stage
           }
 
-          $archive = Join-Path $env:RUNNER_TEMP "PSTools.zip"
-          $pstoolsDir = Join-Path $env:RUNNER_TEMP "PSTools"
-          Invoke-WebRequest `
-            -Uri "https://download.sysinternals.com/files/PSTools.zip" `
-            -OutFile $archive
-          Expand-Archive -LiteralPath $archive -DestinationPath $pstoolsDir -Force
-
-          $psexec = Get-ChildItem -LiteralPath $pstoolsDir -Recurse -Filter "PsExec.exe" | Select-Object -First 1
-          $eula = Get-ChildItem -LiteralPath $pstoolsDir -Recurse -Filter "Eula.txt" | Select-Object -First 1
-          if (-not $psexec -or -not $eula) {
-            throw "The official PsTools archive is missing PsExec.exe or Eula.txt."
-          }
-
-          Copy-Item -LiteralPath $psexec.FullName -Destination $stage
-          Copy-Item -LiteralPath $eula.FullName -Destination (Join-Path $stage "PSTools-Eula.txt")
           Copy-Item -LiteralPath "LICENSE" -Destination (Join-Path $stage "LICENSE.txt")
           Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal
-
-          # Copy PsExec.exe to bin\x64\Release for Inno Setup compiler
-          Copy-Item -LiteralPath $psexec.FullName -Destination "bin\x64\Release\PsExec.exe"
 
           Add-Content -Path $env:GITHUB_OUTPUT -Value "zip=$zip" -Encoding UTF8
           Add-Content -Path $env:GITHUB_OUTPUT -Value "name=$releaseName" -Encoding UTF8

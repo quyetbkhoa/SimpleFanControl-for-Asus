@@ -45,23 +45,19 @@ và trả quyền điều khiển lại cho firmware ASUS. Tùy chọn
 **Restore firmware control on exit** thực hiện thao tác tương tự khi ứng dụng
 thoát.
 
-Một số mẫu máy yêu cầu tiến trình chạy dưới tài khoản `SYSTEM` để giao tiếp với
-dịch vụ ASUS. Vì vậy, bản phát hành đi kèm `run.bat` và PsExec. Khi mở
-`SimpleFanControlForAsus.exe`, ứng dụng sẽ yêu cầu quyền quản trị rồi tự khởi
-động lại trong ngữ cảnh cần thiết.
+Ứng dụng tích hợp sẵn `app.manifest` yêu cầu quyền Quản trị viên (Administrator). Khi mở `SimpleFanControlForAsus.exe`, Windows sẽ hiển thị bảng xác nhận UAC và ứng dụng tự động chạy với quyền cần thiết mà không cần file trung gian nào.
 
 ## Tải và sử dụng
 
-1. Tải file ZIP mới nhất trong
+1. Tải file cài đặt (`.exe`) hoặc file ZIP mới nhất trong
    [GitHub Releases](https://github.com/quyetbkhoa/SimpleFanControl-for-Asus/releases).
-2. Giải nén toàn bộ ZIP vào cùng một thư mục.
+2. Nếu dùng file cài đặt, chỉ cần chạy file Setup. Nếu dùng file ZIP, giải nén toàn bộ vào cùng một thư mục.
 3. Nếu đang chạy bản cũ, thoát hoàn toàn từ biểu tượng ở khay hệ thống.
 4. Mở `SimpleFanControlForAsus.exe` và chấp nhận yêu cầu UAC.
 5. Chọn điều khiển thủ công hoặc biểu đồ nhiệt độ, sau đó bật
    **Fan control / Điều khiển quạt**.
 
-Không tách riêng hoặc xóa `AsusWinIO64.dll`, `PsExec.exe`, `run.bat` và các file
-`.config` khỏi thư mục ứng dụng.
+Không tách riêng hoặc xóa `AsusWinIO64.dll` và các file `.config` khỏi thư mục ứng dụng.
 
 ## Tương thích
 
