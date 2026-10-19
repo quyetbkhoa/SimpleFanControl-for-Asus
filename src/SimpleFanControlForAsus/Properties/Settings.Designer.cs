@@ -61,7 +61,7 @@ namespace AsusFanControlGUI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool minimizeToTrayOnClose {
             get {
                 return ((bool)(this["minimizeToTrayOnClose"]));
@@ -73,13 +73,61 @@ namespace AsusFanControlGUI.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool autoRefreshStats {
             get {
                 return ((bool)(this["autoRefreshStats"]));
             }
             set {
                 this["autoRefreshStats"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool fanCurveEnabled {
+            get {
+                return ((bool)(this["fanCurveEnabled"]));
+            }
+            set {
+                this["fanCurveEnabled"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("30:40;55:50;70:65;80:90;90:100")]
+        public string fanCurve {
+            get {
+                return ((string)(this["fanCurve"]));
+            }
+            set {
+                this["fanCurve"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("2000")]
+        public int pollingIntervalMs {
+            get {
+                return ((int)(this["pollingIntervalMs"]));
+            }
+            set {
+                this["pollingIntervalMs"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool startWithWindows {
+            get {
+                return ((bool)(this["startWithWindows"]));
+            }
+            set {
+                this["startWithWindows"] = value;
             }
         }
     }

@@ -1,35 +1,75 @@
-# Asus Fan Control
+# SimpleFanControl for Asus
 
-### Download
-Go to [releases](../../releases)
+Modern bilingual fan control for compatible Asus laptops. The project is based
+on [Karmel0x/AsusFanControl](https://github.com/Karmel0x/AsusFanControl) and keeps
+that repository as its upstream history.
 
-### Run
+![Dashboard](docs/images/bilingual-dashboard-preview.png)
 
-<details>
-    <summary>Command line: `AsusFanControl.exe`</summary>
-    
-    AsusFanControl.exe <args>
-        --get-fan-speeds
-        --set-fan-speeds=0-100 (percent value, 0 for turning off test mode)
-        --get-fan-count
-        --get-fan-speed=fanId (comma separated)
-        --set-fan-speed=fanId:0-100 (comma separated, percent value, 0 for turning off test mode)
-        --get-cpu-temp
-</details>
+## Features / Tính năng
 
-GUI: `AsusFanControlGUI.exe`  
+- English and Vietnamese interface / Giao diện song ngữ Anh–Việt.
+- Live CPU temperature, fan RPM and applied output.
+- Manual fan control and draggable temperature curve.
+- Current CPU temperature marker on the curve.
+- Polling intervals of 1, 2, 3, 5 or 10 seconds; default is 2 seconds.
+- Auto-refresh, system tray and automatic firmware reset on exit.
+- Optional Windows sign-in startup through a highest-privilege Scheduled Task.
 
-![AsusFanControlGUI](https://github.com/Karmel0x/AsusFanControl/assets/25367564/fe197ad0-7079-4d51-ae78-177cb6369e96)
+Default curve / Đường cong mặc định:
 
-### Why need it?
-My laptop does not support the [Fan Profile](https://github.com/Karmel0x/AsusFanControl/assets/25367564/924d990a-bf20-4b8d-bf9d-56c460174d99) option, but it often overheats. Looked for apps to control fans, but none is working.
+`30°C/40% → 55°C/50% → 70°C/65% → 80°C/90% → 90°C/100%`
 
-### Compatibility
-This program should work on any laptop with x64 windows where [Fan Diagnosis](https://github.com/Karmel0x/AsusFanControl/assets/25367564/7129833b-97af-4da8-9148-b71e49552ea4) in [MyASUS](https://apps.microsoft.com/store/detail/myasus/9N7R5S6B0ZZH) application is working as it is using same library.
+## Repository layout / Cấu trúc
 
-[ASUS System Control Interface](https://www.asus.com/support/faq/1047338/) is necessary for this software to work - `ASUS System Analysis` service [must be running](../../issues/16). It's automatically installed with `MyASUS` app.
+```text
+src/
+  AsusFanControl/             Core hardware and CLI
+  SimpleFanControlForAsus/    WinForms desktop application
+docs/                         Screenshots and user guide
+scripts/                      Bootstrap, build and package scripts
+tools/                        Local runtime dependency location
+build/                        Generated binaries (ignored)
+dist/                         Generated release packages (ignored)
+archive/                      Recoverable legacy packages (ignored)
+```
 
-Included `AsusWinIO64.dll` is licenced to `(c) ASUSTek COMPUTER INC.` which can be found in `C:\Windows\System32\DriverStore\FileRepository\asussci2.inf_amd64_-\ASUSSystemAnalysis\` if you have MyASUS installed.
+## Build / Biên dịch
 
-[Works on](../../issues/13): 
-- ASUS: VivoBook, ZenBook, TUF Gaming, ROG Strix, ROG Zephyrus, ROG Flow
+Requirements:
+
+- Windows x64
+- .NET Framework 4.7.2 runtime
+- PowerShell
+- Visual Studio Build Tools, or the Windows Framework MSBuild fallback
+
+```powershell
+.\scripts\bootstrap.ps1
+.\scripts\build.ps1
+```
+
+The build is written to `build\bin\x64\Release`.
+
+To create a runnable package, place the official Microsoft Sysinternals
+`PsExec.exe` at `tools\PsExec.exe`, then run:
+
+```powershell
+.\scripts\package.ps1
+```
+
+The package is written to `dist\SimpleFanControl-for-Asus-v2.1.0` and includes
+SHA-256 checksums.
+
+## Run / Chạy ứng dụng
+
+Open `SimpleFanControlForAsus.exe` from the generated package. On systems that
+require SYSTEM access, the executable redirects through `run.bat` and PsExec.
+
+The ASUS System Control Interface and `ASUS System Analysis` service must be
+installed and running. `AsusWinIO64.dll` is licensed to ASUSTek Computer Inc.
+
+## Safety / An toàn
+
+Fan control directly affects cooling hardware. Keep `Safe output limits`
+enabled unless you understand the consequences. Turning control off or exiting
+the application returns all fans to ASUS firmware control.

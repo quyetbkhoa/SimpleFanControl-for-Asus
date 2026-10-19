@@ -390,3 +390,12 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Local compiler downloaded for legacy builds
+.tools/
+
+# Local build, release and migration artifacts
+build/
+dist/
+archive/
+tools/PsExec.exe
