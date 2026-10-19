@@ -179,7 +179,7 @@ namespace AsusFanControlGUI
             translations.Add(settingsNavigationButton, "navSettings");
             dashboardNavigationButton.Dock = DockStyle.Top;
             settingsNavigationButton.Dock = DockStyle.Top;
-            var version = CreateLabel("SimpleFanControl\nv2.2.0", 9, FontStyle.Regular, TextSecondary);
+            var version = CreateLabel("SimpleFanControl\nv2.2.1", 9, FontStyle.Regular, TextSecondary);
             version.Dock = DockStyle.Bottom;
             version.Height = 48;
             sidebar.Controls.AddRange(new Control[] { version, settingsNavigationButton, dashboardNavigationButton });

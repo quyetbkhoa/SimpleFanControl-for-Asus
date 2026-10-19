@@ -58,7 +58,7 @@ To create a runnable package, place the official Microsoft Sysinternals
 .\scripts\package.ps1
 ```
 
-The package is written to `dist\SimpleFanControl-for-Asus-v2.2.0` and includes
+The package is written to `dist\SimpleFanControl-for-Asus-v2.2.1` and includes
 SHA-256 checksums.
 
 ## Run / Chạy ứng dụng

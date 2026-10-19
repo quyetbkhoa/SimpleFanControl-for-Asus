@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -22,6 +23,17 @@ internal static class UiSmokeTest
         Application.SetCompatibleTextRenderingDefault(false);
         var output = Path.GetFullPath(args[0]);
         Directory.CreateDirectory(output);
+        var program = typeof(Form1).Assembly.GetType("AsusFanControlGUI.Program");
+        var validateProcess = program.GetMethod("IsExpectedDetachedProcess", BindingFlags.Static | BindingFlags.NonPublic);
+        using (var self = Process.GetCurrentProcess())
+        {
+            if (!(bool)validateProcess.Invoke(null, new object[] { self.Id, (uint)self.SessionId, self.ProcessName }) ||
+                (bool)validateProcess.Invoke(null, new object[] { self.Id, (uint)self.SessionId, "UnrelatedApplication" }) ||
+                (bool)validateProcess.Invoke(null, new object[] { self.Id, uint.MaxValue, self.ProcessName }) ||
+                (bool)validateProcess.Invoke(null, new object[] { -1, (uint)self.SessionId, self.ProcessName }))
+                throw new Exception("Detached launcher PID validation failed.");
+        }
+        Console.WriteLine("PASS: detached PsExec PID is accepted only for the expected process and session.");
         using (var form = new Form1())
         {
             form.TopMost = true;

@@ -75,7 +75,12 @@ namespace AsusFanControlGUI
                         throw new InvalidOperationException("Could not start PsExec.");
                     if (!process.WaitForExit(15000))
                         throw new TimeoutException(english ? "PsExec did not respond in time." : "PsExec không phản hồi kịp thời.");
-                    if (process.ExitCode != 0)
+                    // In detached (-d) mode PsExec returns the started process ID.
+                    // Confirm the PID belongs to our UI in the requested session;
+                    // do not mistake it for an error or accept arbitrary error codes.
+                    if (process.ExitCode != 0 &&
+                        !IsExpectedDetachedProcess(process.ExitCode, session,
+                            Path.GetFileNameWithoutExtension(Application.ExecutablePath)))
                         throw new InvalidOperationException("PsExec: " + process.ExitCode);
                 }
             }
@@ -89,6 +94,21 @@ namespace AsusFanControlGUI
                     (english ? "Could not start fan control.\n\n" : "Không thể khởi động điều khiển quạt.\n\n") + exception.Message,
                     "SimpleFanControl for Asus", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        internal static bool IsExpectedDetachedProcess(int processId, uint session, string processName)
+        {
+            if (processId <= 0)
+                return false;
+            try
+            {
+                using (var process = Process.GetProcessById(processId))
+                    return process.SessionId == session &&
+                        string.Equals(process.ProcessName, processName, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+            catch (Win32Exception) { return false; }
         }
     }
 }
