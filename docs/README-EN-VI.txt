@@ -1,4 +1,4 @@
-SIMPLEFANCONTROL FOR ASUS 2.4.0
+SIMPLEFANCONTROL FOR ASUS 2.4.1
 ENGLISH / TIENG VIET
 
 START / KHOI DONG
@@ -14,6 +14,12 @@ START / KHOI DONG
    Bam la co o goc tren ben phai de doi tieng Viet / tieng Anh.
 
 FAN CONTROL / DIEU KHIEN QUAT
+- The selected Off / Manual / Curve mode is saved and restored on next launch.
+  Luu che do Tat / Thu cong / Duong cong va khoi phuc khi mo lai, ke ca cung Windows.
+  After upgrading from v2.4.0 or earlier, select your preferred mode once.
+  Sau khi nang cap tu v2.4.0 tro ve truoc, hay chon lai che do mong muon mot lan.
+  Curve control waits for the first successful CPU temperature reading.
+  Che do duong cong cho doc nhiet do CPU thanh cong truoc khi dieu khien.
 - Off / Tat: return control to ASUS firmware; this does not stop the fans.
   Tra quyen ve ASUS; khong phai dung quat.
 - Manual: use the manual slider.

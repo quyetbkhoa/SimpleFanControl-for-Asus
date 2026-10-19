@@ -105,7 +105,9 @@ namespace AsusFanControlGUI
             var settings = Properties.Settings.Default;
             manualSpeedSlider.Value = Math.Max(0, Math.Min(100, settings.fanSpeed));
             labelManualSpeed.Text = manualSpeedSlider.Value + "%";
-            modeSelector.SelectedMode = FanControlMode.Off;
+            // Unknown/corrupt preferences must never enable hardware control.
+            modeSelector.SelectedMode = Enum.IsDefined(typeof(FanControlMode), settings.controlMode)
+                ? (FanControlMode)settings.controlMode : FanControlMode.Off;
             smoothingToggle.Checked = settings.smoothingEnabled;
             rampUpInput.Value = Math.Max(1, Math.Min(100, settings.rampUpPerSecond));
             rampDownInput.Value = Math.Max(1, Math.Min(100, settings.rampDownPerSecond));
@@ -155,7 +157,7 @@ namespace AsusFanControlGUI
                 fanCurveControl.CurrentTemperature = 61;
                 lastTemperature = 61;
                 StartControlTimer();
-                SetConnectionStatus("firmware", false);
+                RestoreSelectedControlMode();
                 return;
             }
 
@@ -169,12 +171,7 @@ namespace AsusFanControlGUI
                 if (IsDisposed)
                     return;
                 StartControlTimer();
-                if (modeSelector.SelectedMode == FanControlMode.Manual)
-                    ApplyManualSpeed();
-                else
-                    ApplyFanSpeed(0);
-                SetConnectionStatus("firmware", false);
-                labelCurveStatus.Text = strings["firmwareActive"];
+                RestoreSelectedControlMode();
                 RefreshAll(true);
             }
             catch (Exception exception)
@@ -200,6 +197,21 @@ namespace AsusFanControlGUI
             RestartTimer();
         }
 
+        private void RestoreSelectedControlMode()
+        {
+            if (modeSelector.SelectedMode == FanControlMode.Manual)
+                ApplyManualSpeed();
+            else if (preview && modeSelector.CurveSelected)
+                ApplyCurrentCurve();
+            else
+                // Curve mode waits for the first valid sensor read in RefreshAll.
+                ApplyFanSpeed(0);
+            SetConnectionStatus(!IsControlEnabled ? "firmware" :
+                modeSelector.CurveSelected ? "curveActive" : "manualActive", false);
+            if (!IsControlEnabled)
+                labelCurveStatus.Text = strings["firmwareActive"];
+        }
+
         private void OnProcessExit(object sender, EventArgs e)
         {
             closingHardware = true;
@@ -212,6 +224,7 @@ namespace AsusFanControlGUI
         {
             if (initializing)
                 return;
+            Properties.Settings.Default.controlMode = (int)modeSelector.SelectedMode;
             Properties.Settings.Default.fanCurveEnabled = modeSelector.CurveSelected;
             SaveSettings();
             UpdateControlMode();

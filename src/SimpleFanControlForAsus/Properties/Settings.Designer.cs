@@ -33,6 +33,13 @@ namespace AsusFanControlGUI.Properties {
         [global::System.Configuration.DefaultSettingValueAttribute("5")]
         public int rampDownPerSecond { get { return (int)this["rampDownPerSecond"]; } set { this["rampDownPerSecond"]=value; } }
 
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int controlMode {
+            get { return (int)this["controlMode"]; }
+            set { this["controlMode"] = value; }
+        }
+
         public static Settings Default {
             get {
                 return defaultInstance;

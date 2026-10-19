@@ -408,7 +408,7 @@ namespace AsusFanControlGUI
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 164));
-            labelSettingsStatus = CreateLabel("SimpleFanControl for Asus · 2.4.0", 9, FontStyle.Regular, UiPalette.Muted);
+            labelSettingsStatus = CreateLabel("SimpleFanControl for Asus · 2.4.1", 9, FontStyle.Regular, UiPalette.Muted);
             labelSettingsStatus.Dock = DockStyle.Fill;
             labelSettingsStatus.TextAlign = ContentAlignment.MiddleLeft;
             var refresh = LocalButton("refreshNow");

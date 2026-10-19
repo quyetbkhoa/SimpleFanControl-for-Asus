@@ -35,6 +35,10 @@ internal static class UiSmokeTest
                 throw new Exception("Detached launcher PID validation failed.");
         }
         Console.WriteLine("PASS: detached PsExec PID is accepted only for the expected process and session.");
+        var settingsType = typeof(Form1).Assembly.GetType("AsusFanControlGUI.Properties.Settings");
+        var settings = settingsType.GetProperty("Default").GetValue(null, null);
+        var savedMode = settingsType.GetProperty("controlMode");
+        savedMode.SetValue(settings, 0, null);
         using (var form = new Form1())
         {
             form.TopMost = true;
@@ -122,6 +126,44 @@ internal static class UiSmokeTest
                 throw new Exception("Restoring the startup window from tray failed.");
             trayForm.Hide();
         }
+        // Recreate the window like a new launch, including tray-only startup.
+        foreach (int mode in new[] { 0, 1, 2 })
+        {
+            using (var first = new Form1())
+            {
+                first.Show();
+                Application.DoEvents();
+                SelectMode(Field<Control>(first, "modeSelector"), mode);
+                if ((int)savedMode.GetValue(settings, null) != mode)
+                    throw new Exception("Selected mode was not persisted: " + mode);
+                first.Hide();
+            }
+            foreach (bool inTray in new[] { false, true })
+            {
+                using (var reopened = new Form1(inTray))
+                {
+                    reopened.Show();
+                    Application.DoEvents();
+                    var selector = Field<Control>(reopened, "modeSelector");
+                    int restored = Convert.ToInt32(selector.GetType().GetProperty("SelectedMode").GetValue(selector, null));
+                    int target = (int)reopened.GetType().GetField("desiredFanSpeed", Private).GetValue(reopened);
+                    int expected = mode == 0 ? 0 : mode == 1
+                        ? (int)settingsType.GetProperty("fanSpeed").GetValue(settings, null) : 56;
+                    if (restored != mode || target != expected)
+                        throw new Exception("Mode/target restoration failed: mode=" + mode + ", tray=" + inTray + ", target=" + target);
+                    reopened.Hide();
+                }
+            }
+        }
+        savedMode.SetValue(settings, 999, null);
+        using (var invalid = new Form1())
+        {
+            var selector = Field<Control>(invalid, "modeSelector");
+            if (Convert.ToInt32(selector.GetType().GetProperty("SelectedMode").GetValue(selector, null)) != 0)
+                throw new Exception("Invalid stored mode must fall back to Off.");
+        }
+        savedMode.SetValue(settings, 0, null);
+        Console.WriteLine("PASS: Off/Manual/Curve survive window recreation and tray startup; invalid preferences fall back to Off.");
         var rampType=typeof(Form1).Assembly.GetType("AsusFanControlGUI.FanSpeedRamp");
         var ramp=Activator.CreateInstance(rampType,true);
         rampType.GetMethod("Reset").Invoke(ramp,new object[]{50});

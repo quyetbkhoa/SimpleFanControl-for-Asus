@@ -13,6 +13,8 @@ that repository as its upstream history.
 - Live CPU temperature, fan RPM and applied output.
 - Manual fan control and draggable temperature curve.
 - Three control states: Off (ASUS firmware), Manual (slider only), Curve (graph only).
+- Restores the last selected control mode on launch, including Windows tray startup.
+  Select your preferred mode once after upgrading from v2.4.0 or earlier.
 - Add endpoints; dragging adjusts neighboring speeds to keep the curve monotonic.
 - Keyboard and right-click step controls provide alternatives to dragging.
 - Configurable rise/fall slew rates; upward smoothing is bypassed at observed CPU ≥90°C.
@@ -63,7 +65,7 @@ To create a runnable package, place the official Microsoft Sysinternals
 .\scripts\package.ps1
 ```
 
-The package is written to `dist\SimpleFanControl-for-Asus-v2.4.0` and includes
+The package is written to `dist\SimpleFanControl-for-Asus-v2.4.1` and includes
 SHA-256 checksums.
 
 ## Run / Chạy ứng dụng
