@@ -48,6 +48,9 @@ internal static class UiSmokeTest
             var vi = Enum.Parse(property.PropertyType, "Vietnamese");
             property.SetValue(localizer, vi, null);
             form.GetType().GetMethod("ApplyLanguage", Private).Invoke(form, null);
+            Save(form, output, "off-vi.png");
+            var selector=Field<Control>(form,"modeSelector");
+            SelectMode(selector,2);
             Save(form, output, "dashboard-vi.png");
             Click(language);
             if (property.GetValue(localizer, null).ToString() != "English")
@@ -59,6 +62,9 @@ internal static class UiSmokeTest
             Save(form, output, "settings-en.png");
             Click(language);
             Save(form, output, "settings-vi.png");
+            var settingsScroll=(ScrollableControl)form.Controls.Find("settingsScroll",true)[0];
+            settingsScroll.ScrollControlIntoView(Field<NumericUpDown>(form,"rampDownInput"));
+            Save(form,output,"smoothing-vi.png");
             Field<Button>(form, "dashboardNavigationButton").PerformClick();
             var curve = Field<Control>(form, "fanCurveControl");
             var plot = (Rectangle)curve.GetType().GetMethod("GetPlotRectangle", Private).Invoke(curve, null);
@@ -75,24 +81,29 @@ internal static class UiSmokeTest
             Application.DoEvents();
             int after = (int)point.GetType().GetProperty("FanSpeed").GetValue(point, null);
             if (after <= speed) throw new Exception("Curve dragging did not update speed. Before=" + speed + "; after=" + after);
-            Field<NumericUpDown>(form, "pointTemperature").Value = 72;
-            Field<NumericUpDown>(form, "pointSpeed").Value = 68;
-            Field<Button>(form, "applyPointButton").PerformClick();
-            if ((int)point.GetType().GetProperty("Temperature").GetValue(point, null) != 72 ||
-                (int)point.GetType().GetProperty("FanSpeed").GetValue(point, null) != 68)
-                throw new Exception("Numeric point editor did not apply the requested values.");
-            curve.GetType().GetMethod("OnKeyDown", Private).Invoke(curve, new object[] { new KeyEventArgs(Keys.Up) });
-            if ((int)point.GetType().GetProperty("FanSpeed").GetValue(point, null) != 69)
-                throw new Exception("Keyboard point adjustment failed.");
-            if (Field<CheckBox>(form, "toggleFanControl").Checked)
-                throw new Exception("Editing the curve must not enable hardware control.");
-            form.GetType().GetMethod("ResetFanCurve_Click", Private).Invoke(form, new object[] { form, EventArgs.Empty });
-            Console.WriteLine("PASS: numeric curve editor, keyboard adjustment and reset; hardware control stays disabled.");
-            var mode = Field<Control>(form, "modeSelector");
-            Mouse(mode, 0x201, mode.Width - 20, mode.Height / 2);
-            Mouse(mode, 0x202, mode.Width - 20, mode.Height / 2);
-            if (Field<Control>(form, "manualSpeedSlider").Enabled)
-                throw new Exception("Manual slider must be disabled in curve mode.");
+            var update=curve.GetType().GetMethod("UpdatePoint");
+            update.Invoke(curve,new object[]{2,70,30});
+            for(int i=0;i<2;i++) if((int)points[i].GetType().GetProperty("FanSpeed").GetValue(points[i],null)>30)
+                throw new Exception("Lowering a point did not propagate left.");
+            update.Invoke(curve,new object[]{2,70,95});
+            for(int i=3;i<points.Count;i++) if((int)points[i].GetType().GetProperty("FanSpeed").GetValue(points[i],null)<95)
+                throw new Exception("Raising a point did not propagate right.");
+            int count=points.Count;
+            curve.GetType().GetMethod("AddPoint").Invoke(curve,new object[]{true});
+            curve.GetType().GetMethod("AddPoint").Invoke(curve,new object[]{false});
+            if(points.Count!=count+2)throw new Exception("Endpoint addition failed.");
+            var parsed=model.GetType().GetMethod("Parse").Invoke(null,new object[]{model.ToString()});
+            if(parsed.ToString()!=model.ToString())throw new Exception("Added endpoints did not round-trip.");
+            form.GetType().GetMethod("ResetFanCurve_Click",Private).Invoke(form,new object[]{form,EventArgs.Empty});
+            SelectMode(selector,1);
+            if(curve.Visible || !Field<Control>(form,"manualSpeedSlider").Visible)throw new Exception("Manual must show only the slider.");
+            Save(form,output,"manual-vi.png");
+            SelectMode(selector,0);
+            if(curve.Visible || Field<Control>(form,"manualSpeedSlider").Visible ||
+                (int)form.GetType().GetField("desiredFanSpeed",Private).GetValue(form)!=0)
+                throw new Exception("Off must hide editors and restore firmware target.");
+            SelectMode(selector,2);
+            Console.WriteLine("PASS: endpoint add/save, neighbor propagation, Off/Manual/Curve visibility.");
             form.Size = form.MinimumSize;
             Save(form, output, "dashboard-minimum.png");
             Console.WriteLine("PASS: language mouse toggle, both pages and languages, curve drag, mode switch, minimum window. DPI=" + form.DeviceDpi);
@@ -111,6 +122,17 @@ internal static class UiSmokeTest
                 throw new Exception("Restoring the startup window from tray failed.");
             trayForm.Hide();
         }
+        var rampType=typeof(Form1).Assembly.GetType("AsusFanControlGUI.FanSpeedRamp");
+        var ramp=Activator.CreateInstance(rampType,true);
+        rampType.GetMethod("Reset").Invoke(ramp,new object[]{50});
+        var next=rampType.GetMethod("Next");
+        if((int)next.Invoke(ramp,new object[]{100,1.0,20.0,5.0,true,false})!=70 ||
+            (int)next.Invoke(ramp,new object[]{40,1.0,20.0,5.0,true,false})!=65 ||
+            (int)next.Invoke(ramp,new object[]{100,0.1,20.0,5.0,true,true})!=100 ||
+            (int)next.Invoke(ramp,new object[]{0,0.1,20.0,5.0,true,false})!=0 ||
+            (int)next.Invoke(ramp,new object[]{80,0.1,20.0,5.0,true,false})!=80)
+            throw new Exception("Ramp rates, urgent rise or Off bypass failed.");
+        Console.WriteLine("PASS: +20/-5 percent-points/sec ramp, urgent rise, immediate Off/initial enable.");
         var manager = typeof(Form1).Assembly.GetType("AsusFanControlGUI.StartupTaskManager");
         var xml = (string)manager.GetMethod("GetDefinitionXml", BindingFlags.Static | BindingFlags.NonPublic)
             .Invoke(null, new object[] { @"C:\Program Files\Simple Fan\SimpleFanControlForAsus.exe" });
@@ -137,6 +159,13 @@ internal static class UiSmokeTest
         SendMessage(control.Handle, message, message == 0x202 ? IntPtr.Zero : new IntPtr(1),
             new IntPtr((y << 16) | (x & 65535)));
         if (pump) Application.DoEvents();
+    }
+    private static void SelectMode(Control selector,int mode)
+    {
+        int x=(mode*2+1)*selector.Width/6;
+        Mouse(selector,0x201,x,selector.Height/2,false);
+        Mouse(selector,0x202,x,selector.Height/2,false);
+        Application.DoEvents();
     }
     private static void Click(Control control)
     {

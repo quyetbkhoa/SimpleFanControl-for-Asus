@@ -7,11 +7,11 @@ namespace AsusFanControlGUI
 {
     public partial class Form1
     {
-        private ComboBox pointPicker;
-        private NumericUpDown pointTemperature;
-        private NumericUpDown pointSpeed;
-        private bool updatingPointEditor;
-        private Button applyPointButton;
+        private Panel modeContent;
+        private Control curvePage, manualPage, offPage;
+        private Label controlError;
+        private ToggleSwitch smoothingToggle;
+        private NumericUpDown rampUpInput, rampDownInput;
         private static TableLayoutPanel Grid(int columns, int rows)
         {
             var grid = new TableLayoutPanel
@@ -75,34 +75,42 @@ namespace AsusFanControlGUI
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 88,
+                Height = 52,
                 BackColor = UiPalette.Surface,
-                Padding = new Padding(20, 8, 20, 0)
+                Padding = new Padding(20, 6, 20, 6)
             };
-            var layout = Grid(1, 2);
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var top = Grid(3, 1);
-            top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
-            top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
-            var brand = Grid(2, 1);
-            brand.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
-            brand.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            brand.Controls.Add(new IconView { Glyph = UiGlyph.Fan, ForeColor = UiPalette.Primary, BackColor = UiPalette.Surface, Dock = DockStyle.Fill, AccessibleName = "SimpleFanControl" }, 0, 0);
-            var name = CreateLabel("SimpleFanControl for Asus", 13, FontStyle.Bold, UiPalette.Text);
-            name.Dock = DockStyle.Fill;
-            name.TextAlign = ContentAlignment.MiddleLeft;
-            name.AutoEllipsis = true;
-            brand.Controls.Add(name, 1, 0);
-            labelConnectionStatus = CreateLabel("", 9, FontStyle.Regular, UiPalette.Muted);
-            labelConnectionStatus.Dock = DockStyle.Fill;
-            labelConnectionStatus.Margin = new Padding(8, 10, 16, 10);
-            labelConnectionStatus.TextAlign = ContentAlignment.MiddleCenter;
+            var row = Grid(2, 1);
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88));
+            var nav = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                WrapContents = false,
+                Margin = Padding.Empty
+            };
+            dashboardNavigationButton = new FluentButton
+            {
+                Navigation = true,
+                Glyph = UiGlyph.Dashboard,
+                Width = 160,
+                Height = 36,
+                Margin = new Padding(0, 0, 8, 0)
+            };
+            settingsNavigationButton = new FluentButton
+            {
+                Navigation = true,
+                Glyph = UiGlyph.Settings,
+                Width = 120,
+                Height = 36,
+                Margin = Padding.Empty
+            };
+            translations.Add(dashboardNavigationButton, "navControl");
+            translations.Add(settingsNavigationButton, "navSettings");
+            nav.Controls.AddRange(new Control[] { dashboardNavigationButton, settingsNavigationButton });
             languageButton = new LanguageButton
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(0, 7, 0, 7)
+                Margin = Padding.Empty
             };
             languageButton.Click += (sender, args) =>
             {
@@ -115,37 +123,9 @@ namespace AsusFanControlGUI
 
                 ApplyLanguage();
             };
-            top.Controls.Add(brand, 0, 0);
-            top.Controls.Add(labelConnectionStatus, 1, 0);
-            top.Controls.Add(languageButton, 2, 0);
-            var navigation = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                WrapContents = false,
-                Margin = Padding.Empty
-            };
-            dashboardNavigationButton = new FluentButton
-            {
-                Navigation = true,
-                Glyph = UiGlyph.Dashboard,
-                Width = 160,
-                Height = 34,
-                Margin = new Padding(0, 2, 8, 0)
-            };
-            settingsNavigationButton = new FluentButton
-            {
-                Navigation = true,
-                Glyph = UiGlyph.Settings,
-                Width = 120,
-                Height = 34,
-                Margin = new Padding(0, 2, 8, 0)
-            };
-            translations.Add(dashboardNavigationButton, "navControl");
-            translations.Add(settingsNavigationButton, "navSettings");
-            navigation.Controls.AddRange(new Control[] { dashboardNavigationButton, settingsNavigationButton });
-            layout.Controls.Add(top, 0, 0);
-            layout.Controls.Add(navigation, 0, 1);
-            header.Controls.Add(layout);
+            row.Controls.Add(nav, 0, 0);
+            row.Controls.Add(languageButton, 1, 0);
+            header.Controls.Add(row);
             return header;
         }
 
@@ -174,10 +154,9 @@ namespace AsusFanControlGUI
                 Padding = new Padding(20, 12, 20, 16),
                 BackColor = UiPalette.Page
             };
-            var layout = Grid(1, 4);
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
+            var layout = Grid(1, 3);
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             var stats = Grid(3, 1);
             for (int i = 0; i < 3; i++)
@@ -187,17 +166,82 @@ namespace AsusFanControlGUI
             stats.Controls.Add(Stat("appliedOutput", "", UiGlyph.Power, out labelAppliedSpeed), 2, 0);
             labelAppliedSpeed.Font = new Font("Segoe UI", 20, FontStyle.Bold);
             labelFanRpm.Font = new Font("Segoe UI", 20, FontStyle.Bold);
-            var work = Grid(2, 1);
-            work.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            work.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 224));
-            work.Controls.Add(BuildCurveCard(), 0, 0);
-            work.Controls.Add(BuildPointEditor(), 1, 0);
-            layout.Controls.Add(Heading("dashboardTitle", "dashboardSubtitle"), 0, 0);
-            layout.Controls.Add(stats, 0, 1);
-            layout.Controls.Add(BuildControlCard(), 0, 2);
-            layout.Controls.Add(work, 0, 3);
+            modeContent = new Panel
+            {
+                Dock = DockStyle.Fill
+            };
+            curvePage = BuildCurveCard();
+            manualPage = BuildManualPage();
+            offPage = BuildOffPage();
+            modeContent.Controls.AddRange(new[] { curvePage, manualPage, offPage });
+            layout.Controls.Add(stats, 0, 0);
+            layout.Controls.Add(BuildControlCard(), 0, 1);
+            layout.Controls.Add(modeContent, 0, 2);
+            controlError = CreateLabel("", 9, FontStyle.Regular, UiPalette.Danger);
+            controlError.Dock = DockStyle.Bottom;
+            controlError.Height = 32;
+            controlError.Visible = false;
             page.Controls.Add(layout);
+            page.Controls.Add(controlError);
             return page;
+        }
+
+        private Control BuildOffPage()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(24)
+            };
+            var title = LocalLabel("offTitle", 16, true);
+            title.Dock = DockStyle.Top;
+            title.AutoSize = false;
+            title.Height = 42;
+            var hint = LocalLabel("offDescription", 10, false, UiPalette.Muted);
+            hint.Dock = DockStyle.Top;
+            hint.AutoSize = false;
+            hint.Height = 72;
+            card.Controls.Add(hint);
+            card.Controls.Add(title);
+            return card;
+        }
+
+        private Control BuildManualPage()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(24)
+            };
+            var layout = Grid(1, 4);
+            foreach (int height in new[]
+            {
+                40,
+                56,
+                64
+            }
+
+            )
+                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var title = LocalLabel("manualTitle", 14, true);
+            title.Dock = DockStyle.Fill;
+            labelManualSpeed = CreateLabel("90%", 28, FontStyle.Bold, UiPalette.PrimaryDark);
+            labelManualSpeed.Dock = DockStyle.Fill;
+            manualSpeedSlider = new ModernSlider
+            {
+                Dock = DockStyle.Fill,
+                AccessibleName = strings["manualTitle"]
+            };
+            var hint = LocalLabel("manualDescription", 10, false, UiPalette.Muted);
+            hint.AutoSize = false;
+            hint.Dock = DockStyle.Fill;
+            layout.Controls.Add(title, 0, 0);
+            layout.Controls.Add(labelManualSpeed, 0, 1);
+            layout.Controls.Add(manualSpeedSlider, 0, 2);
+            layout.Controls.Add(hint, 0, 3);
+            card.Controls.Add(layout);
+            return card;
         }
 
         private ModernCard Stat(string key, string unit, UiGlyph glyph, out Label value)
@@ -241,72 +285,25 @@ namespace AsusFanControlGUI
             var card = new ModernCard
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(0, 0, 8, 10),
-                Padding = new Padding(14, 10, 14, 10)
+                Padding = new Padding(14, 8, 14, 8),
+                Margin = new Padding(0, 0, 8, 12)
             };
-            var layout = Grid(3, 1);
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 224));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
-            var master = Grid(2, 2);
-            master.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            master.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 56));
-            master.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            master.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var title = LocalLabel("coolingControl", 10, true);
-            title.Dock = DockStyle.Fill;
+            var row = Grid(2, 1);
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 450));
+            var title = LocalLabel("coolingControl", 11, true);
             title.AutoSize = false;
-            toggleFanControl = new ToggleSwitch
-            {
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                AccessibleName = strings["coolingControl"]
-            };
-            controlNote = LocalLabel("firmwareActive", 8.5f, false, UiPalette.Muted);
-            controlNote.AutoSize = false;
-            controlNote.Dock = DockStyle.Fill;
-            master.Controls.Add(title, 0, 0);
-            master.Controls.Add(toggleFanControl, 1, 0);
-            master.Controls.Add(controlNote, 0, 1);
-            master.SetColumnSpan(controlNote, 2);
+            title.Dock = DockStyle.Fill;
+            title.TextAlign = ContentAlignment.MiddleLeft;
             modeSelector = new ModeSelector
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(12, 8, 12, 10),
+                Font = new Font("Segoe UI", 10),
                 AccessibleName = strings["modeLabel"]
             };
-            var manual = Grid(2, 2);
-            manual.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            manual.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
-            manual.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-            manual.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            modeTitle = LocalLabel("manualTitle", 9, true);
-            modeTitle.AutoSize = false;
-            modeTitle.Dock = DockStyle.Fill;
-            labelManualSpeed = CreateLabel("90%", 12, FontStyle.Bold, UiPalette.PrimaryDark);
-            labelManualSpeed.Dock = DockStyle.Fill;
-            labelManualSpeed.TextAlign = ContentAlignment.MiddleRight;
-            manualSpeedSlider = new ModernSlider
-            {
-                Dock = DockStyle.Fill,
-                AccessibleName = strings["manualTitle"]
-            };
-            modeDescription = LocalLabel("curveModeDescription", 9, false, UiPalette.Muted);
-            modeDescription.AutoSize = false;
-            modeDescription.Dock = DockStyle.Fill;
-            modeDescription.Visible = false;
-            manual.Controls.Add(modeTitle, 0, 0);
-            manual.Controls.Add(labelManualSpeed, 1, 0);
-            var sliderHost = new Panel
-            {
-                Dock = DockStyle.Fill
-            };
-            sliderHost.Controls.AddRange(new Control[] { manualSpeedSlider, modeDescription });
-            manual.Controls.Add(sliderHost, 0, 1);
-            manual.SetColumnSpan(sliderHost, 2);
-            layout.Controls.Add(master, 0, 0);
-            layout.Controls.Add(modeSelector, 1, 0);
-            layout.Controls.Add(manual, 2, 0);
-            card.Controls.Add(layout);
+            row.Controls.Add(title, 0, 0);
+            row.Controls.Add(modeSelector, 1, 0);
+            card.Controls.Add(row);
             return card;
         }
 
@@ -323,19 +320,31 @@ namespace AsusFanControlGUI
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
-            var top = Grid(2, 1);
+            var top = Grid(3, 1);
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
             var title = LocalLabel("curveTitle", 10.5f, true);
             title.AutoSize = false;
             title.Dock = DockStyle.Fill;
             title.TextAlign = ContentAlignment.MiddleLeft;
             var reset = LocalButton("resetCurve");
-            ((FluentButton)reset).Glyph = UiGlyph.Reset;
             reset.Dock = DockStyle.Fill;
             reset.Click += ResetFanCurve_Click;
             top.Controls.Add(title, 0, 0);
-            top.Controls.Add(reset, 1, 0);
+            var add = LocalButton("addPoint");
+            add.Dock = DockStyle.Fill;
+            add.Margin = new Padding(0, 0, 8, 0);
+            add.Click += (sender, args) =>
+            {
+                var menu = new ContextMenu(new[] { new MenuItem(strings["addStart"], (a, b) => fanCurveControl.AddPoint(true)), new MenuItem(strings["addEnd"], (a, b) => fanCurveControl.AddPoint(false)) });
+                menu.MenuItems[0].Enabled = fanCurveControl.Curve.Points[0].Temperature > 0;
+                menu.MenuItems[1].Enabled = fanCurveControl.Curve.Points[fanCurveControl.Curve.Points.Count - 1].Temperature < 110;
+                menu.Collapse += (a, b) => menu.Dispose();
+                menu.Show(add, new Point(0, add.Height));
+            };
+            top.Controls.Add(add, 1, 0);
+            top.Controls.Add(reset, 2, 0);
             var hint = LocalLabel("curveSubtitle", 8.5f, false, UiPalette.Muted);
             hint.AutoSize = false;
             hint.Dock = DockStyle.Fill;
@@ -354,117 +363,6 @@ namespace AsusFanControlGUI
             layout.Controls.Add(labelCurveStatus, 0, 3);
             card.Controls.Add(layout);
             return card;
-        }
-
-        private Control BuildPointEditor()
-        {
-            var card = new ModernCard
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(14, 10, 14, 10)
-            };
-            var layout = Grid(1, 8);
-            foreach (int height in new[]
-            {
-                32,
-                36,
-                24,
-                34,
-                24,
-                34,
-                42
-            }
-
-            )
-                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var title = LocalLabel("editPoint", 10.5f, true);
-            title.Dock = DockStyle.Fill;
-            title.AutoSize = false;
-            pointPicker = new ComboBox
-            {
-                Dock = DockStyle.Fill,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 9.5f)
-            };
-            pointTemperature = new NumericUpDown
-            {
-                Dock = DockStyle.Fill,
-                Minimum = 30,
-                Maximum = 100,
-                Font = new Font("Segoe UI", 10),
-                Margin = new Padding(0, 0, 0, 4)
-            };
-            pointSpeed = new NumericUpDown
-            {
-                Dock = DockStyle.Fill,
-                Minimum = 0,
-                Maximum = 100,
-                Font = new Font("Segoe UI", 10),
-                Margin = new Padding(0, 0, 0, 4)
-            };
-            var temperature = LocalLabel("temperatureAxis", 9, false, UiPalette.Muted);
-            temperature.Dock = DockStyle.Fill;
-            var speed = LocalLabel("speedAxis", 9, false, UiPalette.Muted);
-            speed.Dock = DockStyle.Fill;
-            var apply = LocalButton("applyPoint", true);
-            apply.Dock = DockStyle.Fill;
-            apply.Margin = new Padding(0, 6, 0, 0);
-            applyPointButton = apply;
-            apply.Click += (sender, args) =>
-            {
-                if (pointPicker.SelectedIndex < 0)
-                    return;
-                fanCurveControl.UpdatePoint(pointPicker.SelectedIndex, (int)pointTemperature.Value, (int)pointSpeed.Value);
-            };
-            pointPicker.SelectedIndexChanged += (sender, args) =>
-            {
-                if (updatingPointEditor || pointPicker.SelectedIndex < 0)
-                    return;
-                fanCurveControl.SelectedPointIndex = pointPicker.SelectedIndex;
-                RefreshPointEditor();
-            };
-            fanCurveControl.SelectedPointChanged += (sender, args) => RefreshPointEditor();
-            fanCurveControl.CurveChanged += (sender, args) => RefreshPointEditor();
-            layout.Controls.Add(title, 0, 0);
-            layout.Controls.Add(pointPicker, 0, 1);
-            layout.Controls.Add(temperature, 0, 2);
-            layout.Controls.Add(pointTemperature, 0, 3);
-            layout.Controls.Add(speed, 0, 4);
-            layout.Controls.Add(pointSpeed, 0, 5);
-            layout.Controls.Add(apply, 0, 6);
-            card.Controls.Add(layout);
-            return card;
-        }
-
-        private void RefreshPointEditor()
-        {
-            if (pointPicker == null)
-                return;
-            updatingPointEditor = true;
-            try
-            {
-                int index = fanCurveControl.SelectedPointIndex;
-                var points = fanCurveControl.Curve.Points;
-                pointPicker.Items.Clear();
-                for (int i = 0; i < points.Count; i++)
-                    pointPicker.Items.Add(strings.Format("pointNumber", i + 1) + "  ·  " + points[i].Temperature + "° / " + points[i].FanSpeed + "%");
-                pointPicker.SelectedIndex = index;
-                pointTemperature.Minimum = 30;
-                pointTemperature.Maximum = 100;
-                pointSpeed.Minimum = 0;
-                pointSpeed.Maximum = 100;
-                pointTemperature.Value = points[index].Temperature;
-                pointSpeed.Value = points[index].FanSpeed;
-                pointTemperature.Minimum = index == 0 ? 30 : points[index - 1].Temperature + 1;
-                pointTemperature.Maximum = index == points.Count - 1 ? 100 : points[index + 1].Temperature - 1;
-                pointSpeed.Minimum = index == 0 ? 0 : points[index - 1].FanSpeed;
-                pointSpeed.Maximum = index == points.Count - 1 ? 100 : points[index + 1].FanSpeed;
-            }
-            finally
-            {
-                updatingPointEditor = false;
-            }
         }
 
         private Panel BuildSettingsPage()
@@ -510,7 +408,7 @@ namespace AsusFanControlGUI
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 152));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 164));
-            labelSettingsStatus = CreateLabel("SimpleFanControl for Asus · 2.3.0", 9, FontStyle.Regular, UiPalette.Muted);
+            labelSettingsStatus = CreateLabel("SimpleFanControl for Asus · 2.4.0", 9, FontStyle.Regular, UiPalette.Muted);
             labelSettingsStatus.Dock = DockStyle.Fill;
             labelSettingsStatus.TextAlign = ContentAlignment.MiddleLeft;
             var refresh = LocalButton("refreshNow");
@@ -524,7 +422,21 @@ namespace AsusFanControlGUI
             actions.Controls.Add(refresh, 1, 0);
             actions.Controls.Add(exit, 2, 0);
             layout.Controls.Add(Heading("settingsTitle", "settingsSubtitle"), 0, 0);
-            layout.Controls.Add(groups, 0, 1);
+            var scroll = new Panel
+            {
+                Name = "settingsScroll",
+                Dock = DockStyle.Fill,
+                AutoScroll = true
+            };
+            var sections = Grid(1, 2);
+            sections.Dock = DockStyle.Top;
+            sections.Height = 560;
+            sections.RowStyles.Add(new RowStyle(SizeType.Absolute, 360));
+            sections.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));
+            sections.Controls.Add(groups, 0, 0);
+            sections.Controls.Add(BuildSmoothingCard(), 0, 1);
+            scroll.Controls.Add(sections);
+            layout.Controls.Add(scroll, 0, 1);
             layout.Controls.Add(actions, 0, 2);
             page.Controls.Add(layout);
             return page;
@@ -564,7 +476,7 @@ namespace AsusFanControlGUI
         {
             var row = Grid(2, 1);
             row.Dock = DockStyle.None;
-            row.Size = new Size(400, 94);
+            row.Size = new Size(400, 82);
             row.Margin = new Padding(0, 0, 0, 8);
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, action.Width + 8));
@@ -588,12 +500,80 @@ namespace AsusFanControlGUI
             list.Controls.Add(row);
         }
 
+        private Control BuildSmoothingCard()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(16)
+            };
+            var layout = Grid(2, 3);
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var title = LocalLabel("smoothingTitle", 11, true);
+            title.Dock = DockStyle.Fill;
+            smoothingToggle = new ToggleSwitch
+            {
+                Anchor = AnchorStyles.Right | AnchorStyles.Top
+            };
+            var hint = LocalLabel("smoothingDescription", 9, false, UiPalette.Muted);
+            hint.AutoSize = false;
+            hint.Dock = DockStyle.Fill;
+            layout.Controls.Add(title, 0, 0);
+            layout.Controls.Add(smoothingToggle, 1, 0);
+            layout.Controls.Add(hint, 0, 1);
+            layout.SetColumnSpan(hint, 2);
+            rampUpInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 100,
+                Width = 100
+            };
+            rampDownInput = new NumericUpDown
+            {
+                Minimum = 1,
+                Maximum = 100,
+                Width = 100
+            };
+            for (int j = 0; j < 2; j++)
+            {
+                var row = Grid(2, 1);
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+                var label = LocalLabel(j == 0 ? "rampUp" : "rampDown", 9.5f, true);
+                label.AutoSize = false;
+                label.Dock = DockStyle.Fill;
+                row.Controls.Add(label, 0, 0);
+                row.Controls.Add(j == 0 ? rampUpInput : rampDownInput, 1, 0);
+                layout.Controls.Add(row, j, 2);
+            }
+
+            EventHandler changed = (sender, args) =>
+            {
+                if (initializing)
+                    return;
+                Properties.Settings.Default.smoothingEnabled = smoothingToggle.Checked;
+                Properties.Settings.Default.rampUpPerSecond = (int)rampUpInput.Value;
+                Properties.Settings.Default.rampDownPerSecond = (int)rampDownInput.Value;
+                SaveSettings();
+            };
+            smoothingToggle.CheckedChanged += changed;
+            rampUpInput.ValueChanged += changed;
+            rampDownInput.ValueChanged += changed;
+            card.Controls.Add(layout);
+            return card;
+        }
+
         private void ApplyLanguage()
         {
             foreach (var pair in translations)
                 pair.Key.Text = strings[pair.Value];
             languageButton.Language = strings.Language;
             languageButton.AccessibleName = strings.Language == UiLanguage.Vietnamese ? "Switch to English" : "Chuyển sang tiếng Việt";
+            modeSelector.OffText = strings["off"];
             modeSelector.ManualText = strings["manual"];
             modeSelector.CurveText = strings["curve"];
             modeSelector.Invalidate();
@@ -601,11 +581,10 @@ namespace AsusFanControlGUI
             fanCurveControl.SpeedAxisTitle = strings["speedAxis"];
             fanCurveControl.AccessibleName = strings["curveTitle"];
             fanCurveControl.Invalidate();
-            pointTemperature.AccessibleName = strings["temperatureAxis"];
-            pointSpeed.AccessibleName = strings["speedAxis"];
-            pointPicker.AccessibleName = strings["editPoint"];
-            toggleFanControl.AccessibleName = strings["coolingControl"];
             modeSelector.AccessibleName = strings["modeLabel"];
+            smoothingToggle.AccessibleName = strings["smoothingTitle"];
+            rampUpInput.AccessibleName = strings["rampUp"];
+            rampDownInput.AccessibleName = strings["rampDown"];
             manualSpeedSlider.AccessibleName = strings["manualTitle"];
             toggleStartWithWindows.AccessibleName = strings["startWindows"];
             toggleAutoRefresh.AccessibleName = strings["autoRefresh"];
@@ -631,7 +610,7 @@ namespace AsusFanControlGUI
             pollingComboBox.SelectedItem = pollingComboBox.Items.Cast<PollingOption>().OrderBy(p => Math.Abs(p.Milliseconds - milliseconds)).First();
             initializing = previous;
             SetConnectionStatus(connectionKey, connectionKey == "unavailable");
-            labelCurveStatus.Text = strings[toggleFanControl.Checked ? (modeSelector.CurveSelected ? "curveActive" : "manualActive") : "firmwareActive"];
+            labelCurveStatus.Text = strings[modeSelector.SelectedMode == FanControlMode.Off ? "firmwareActive" : modeSelector.CurveSelected ? "curveActive" : "manualActive"];
             if (fanSpeed <= 0)
                 labelAppliedSpeed.Text = strings["auto"];
             if (trayIcon != null)
@@ -640,7 +619,6 @@ namespace AsusFanControlGUI
                 trayIcon.ContextMenu.MenuItems[1].Text = strings["exit"];
             }
 
-            RefreshPointEditor();
             UpdateControlMode();
         }
     }

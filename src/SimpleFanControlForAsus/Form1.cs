@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace AsusFanControlGUI
@@ -22,6 +23,23 @@ namespace AsusFanControlGUI
         private bool exitRequested;
         private bool initializing = true;
         private bool refreshing;
+        private readonly object hardwareGate = new object ();
+        private readonly FanSpeedRamp speedRamp = new FanSpeedRamp();
+        private FanCurve committedCurve = FanCurve.CreateDefault();
+        private readonly Stopwatch rampClock = Stopwatch.StartNew();
+        private Timer controlTimer;
+        private double lastRampTime, lastTemperature;
+        private volatile int desiredFanSpeed, outputRevision;
+        private volatile bool closingHardware;
+        private bool writingOutput;
+        private bool IsControlEnabled
+        {
+            get
+            {
+                return modeSelector.SelectedMode != FanControlMode.Off;
+            }
+        }
+
         private Panel dashboardPage;
         private Panel settingsPage;
         private Button dashboardNavigationButton;
@@ -29,11 +47,9 @@ namespace AsusFanControlGUI
         private Label labelCpuTemperature;
         private Label labelFanRpm;
         private Label labelAppliedSpeed;
-        private Label labelConnectionStatus;
         private Label labelCurveStatus;
         private Label labelManualSpeed;
         private Label labelSettingsStatus;
-        private ToggleSwitch toggleFanControl;
         private ModeSelector modeSelector;
         private readonly Localizer strings = new Localizer(Properties.Settings.Default.language == "en" ? UiLanguage.English : UiLanguage.Vietnamese);
         private readonly Dictionary<Control, string> translations = new Dictionary<Control, string>();
@@ -41,9 +57,6 @@ namespace AsusFanControlGUI
         private string connectionKey = "initializing";
         private bool preview;
         private readonly bool startInTray;
-        private Label modeTitle;
-        private Label modeDescription;
-        private Label controlNote;
         private ToggleSwitch toggleStartWithWindows;
         private ToggleSwitch toggleAutoRefresh;
         private ToggleSwitch toggleMinimizeToTray;
@@ -52,7 +65,9 @@ namespace AsusFanControlGUI
         private ModernSlider manualSpeedSlider;
         private FanCurveControl fanCurveControl;
         private ComboBox pollingComboBox;
-        public Form1() : this(false) { }
+        public Form1() : this(false)
+        {
+        }
 
         public Form1(bool startInTray)
         {
@@ -71,6 +86,7 @@ namespace AsusFanControlGUI
                     ShowInTaskbar = true;
                 };
             }
+
             preview = Environment.GetEnvironmentVariable("SIMPLEFANCONTROL_UI_PREVIEW") == "1";
             DoubleBuffered = true;
             BuildInterface();
@@ -84,18 +100,21 @@ namespace AsusFanControlGUI
             ApplyLanguage();
         }
 
-
         private void LoadSettingsIntoInterface()
         {
             var settings = Properties.Settings.Default;
             manualSpeedSlider.Value = Math.Max(0, Math.Min(100, settings.fanSpeed));
             labelManualSpeed.Text = manualSpeedSlider.Value + "%";
-            modeSelector.CurveSelected = settings.fanCurveEnabled;
+            modeSelector.SelectedMode = FanControlMode.Off;
+            smoothingToggle.Checked = settings.smoothingEnabled;
+            rampUpInput.Value = Math.Max(1, Math.Min(100, settings.rampUpPerSecond));
+            rampDownInput.Value = Math.Max(1, Math.Min(100, settings.rampDownPerSecond));
             toggleAutoRefresh.Checked = settings.autoRefreshStats;
             toggleMinimizeToTray.Checked = settings.minimizeToTrayOnClose;
             toggleTurnOffOnExit.Checked = settings.turnOffControlOnExit;
             toggleSafeSettings.Checked = settings.forbidUnsafeSettings;
             fanCurveControl.Curve = FanCurve.Parse(settings.fanCurve);
+            committedCurve = FanCurve.Parse(settings.fanCurve);
             ApplyLanguage();
             var polling = Math.Max(1000, Math.Min(10000, settings.pollingIntervalMs));
             pollingComboBox.SelectedItem = pollingComboBox.Items.Cast<PollingOption>().OrderBy(option => Math.Abs(option.Milliseconds - polling)).First();
@@ -115,7 +134,6 @@ namespace AsusFanControlGUI
         {
             dashboardNavigationButton.Click += (sender, args) => ShowPage(dashboardPage);
             settingsNavigationButton.Click += (sender, args) => ShowPage(settingsPage);
-            toggleFanControl.CheckedChanged += ToggleFanControl_CheckedChanged;
             modeSelector.SelectionChanged += ToggleFanCurve_CheckedChanged;
             manualSpeedSlider.ValueChanged += (sender, args) => labelManualSpeed.Text = manualSpeedSlider.Value + "%";
             manualSpeedSlider.ValueCommitted += ManualSpeedSlider_ValueCommitted;
@@ -128,21 +146,33 @@ namespace AsusFanControlGUI
             pollingComboBox.SelectedIndexChanged += PollingComboBox_SelectedIndexChanged;
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        private async void Form1_Load(object sender, EventArgs e)
         {
             if (preview)
             {
                 labelCpuTemperature.Text = "61";
                 labelFanRpm.Text = "2400";
                 fanCurveControl.CurrentTemperature = 61;
+                lastTemperature = 61;
+                StartControlTimer();
                 SetConnectionStatus("firmware", false);
                 return;
             }
 
             try
             {
-                asusControl = new AsusControl();
-                ApplyFanSpeed(0);
+                asusControl = await Task.Run(() =>
+                {
+                    lock (hardwareGate)
+                        return new AsusControl();
+                });
+                if (IsDisposed)
+                    return;
+                StartControlTimer();
+                if (modeSelector.SelectedMode == FanControlMode.Manual)
+                    ApplyManualSpeed();
+                else
+                    ApplyFanSpeed(0);
                 SetConnectionStatus("firmware", false);
                 labelCurveStatus.Text = strings["firmwareActive"];
                 RefreshAll(true);
@@ -166,44 +196,32 @@ namespace AsusFanControlGUI
                     labelSettingsStatus.Text = strings.Format("startupFailed", exception.Message);
                 }
             }
+
             RestartTimer();
         }
 
         private void OnProcessExit(object sender, EventArgs e)
         {
+            closingHardware = true;
             if (Properties.Settings.Default.turnOffControlOnExit && asusControl != null)
-                asusControl.SetFanSpeeds(0);
-        }
-
-        private void ToggleFanControl_CheckedChanged(object sender, EventArgs e)
-        {
-            if (initializing)
-                return;
-            UpdateControlMode();
-            if (!toggleFanControl.Checked)
-            {
-                ApplyFanSpeed(0);
-                SetConnectionStatus("firmware", false);
-            }
-            else if (modeSelector.CurveSelected)
-            {
-                RefreshCpuTemperature(true);
-                SetConnectionStatus("curveActive", false);
-            }
-            else
-            {
-                ApplyManualSpeed();
-                SetConnectionStatus("manualActive", false);
-            }
+                lock (hardwareGate)
+                    asusControl.SetFanSpeeds(0);
         }
 
         private void ToggleFanCurve_CheckedChanged(object sender, EventArgs e)
         {
+            if (initializing)
+                return;
             Properties.Settings.Default.fanCurveEnabled = modeSelector.CurveSelected;
             SaveSettings();
             UpdateControlMode();
             RestartTimer();
-            if (toggleFanControl.Checked)
+            if (!IsControlEnabled)
+            {
+                ApplyFanSpeed(0);
+                SetConnectionStatus("firmware", false);
+            }
+            else
             {
                 if (modeSelector.CurveSelected)
                     RefreshCpuTemperature(true);
@@ -219,22 +237,22 @@ namespace AsusFanControlGUI
             manualSpeedSlider.Value = value;
             Properties.Settings.Default.fanSpeed = value;
             SaveSettings();
-            if (toggleFanControl.Checked && !modeSelector.CurveSelected)
+            if (IsControlEnabled && !modeSelector.CurveSelected)
                 ApplyFanSpeed(value);
         }
 
         private void FanCurveControl_CurveChanged(object sender, EventArgs e)
         {
             Properties.Settings.Default.fanCurve = fanCurveControl.Curve.ToString();
+            committedCurve = FanCurve.Parse(Properties.Settings.Default.fanCurve);
             SaveSettings();
-            if (toggleFanControl.Checked && modeSelector.CurveSelected)
+            if (IsControlEnabled && modeSelector.CurveSelected)
                 RefreshCpuTemperature(true);
         }
 
         private void ResetFanCurve_Click(object sender, EventArgs e)
         {
             fanCurveControl.Curve = FanCurve.CreateDefault();
-            RefreshPointEditor();
             FanCurveControl_CurveChanged(sender, e);
             labelCurveStatus.Text = strings["defaultCurveRestored"];
         }
@@ -292,7 +310,7 @@ namespace AsusFanControlGUI
                 return;
             Properties.Settings.Default.forbidUnsafeSettings = toggleSafeSettings.Checked;
             SaveSettings();
-            if (toggleFanControl.Checked)
+            if (IsControlEnabled)
             {
                 if (modeSelector.CurveSelected)
                     RefreshCpuTemperature(true);
@@ -316,7 +334,7 @@ namespace AsusFanControlGUI
             timer?.Stop();
             timer?.Dispose();
             timer = null;
-            if (!toggleAutoRefresh.Checked && !modeSelector.CurveSelected)
+            if (!toggleAutoRefresh.Checked && !IsControlEnabled)
                 return;
             var interval = Properties.Settings.Default.pollingIntervalMs;
             interval = Math.Max(1000, Math.Min(10000, interval));
@@ -328,17 +346,39 @@ namespace AsusFanControlGUI
             timer.Start();
         }
 
-        private void RefreshAll(bool forceStats)
+        private async void RefreshAll(bool forceStats)
         {
-            if (refreshing || asusControl == null)
+            if (refreshing || asusControl == null || closingHardware || preview)
                 return;
             refreshing = true;
             try
             {
-                if (forceStats || toggleAutoRefresh.Checked)
-                    RefreshFanSpeeds();
+                bool readRpm = forceStats || toggleAutoRefresh.Checked;
+                var result = await Task.Run(() =>
+                {
+                    lock (hardwareGate)
+                    {
+                        if (closingHardware)
+                            return null;
+                        string rpm = readRpm ? string.Join(" / ", asusControl.GetFanSpeeds()) : null;
+                        double temperature = asusControl.Thermal_Read_Cpu_Temperature();
+                        return Tuple.Create(rpm, temperature);
+                    }
+                });
+                if (IsDisposed || closingHardware || result == null)
+                    return;
+                if (result.Item1 != null)
+                    labelFanRpm.Text = string.IsNullOrEmpty(result.Item1) ? "—" : result.Item1;
+                lastTemperature = result.Item2;
                 if (forceStats || toggleAutoRefresh.Checked || modeSelector.CurveSelected)
-                    RefreshCpuTemperature(true);
+                    labelCpuTemperature.Text = lastTemperature.ToString("0");
+                fanCurveControl.CurrentTemperature = lastTemperature;
+                ApplyCurrentCurve();
+            }
+            catch (Exception exception)
+            {
+                if (!IsDisposed)
+                    labelCurveStatus.Text = strings.Format("temperatureUnavailable", exception.Message);
             }
             finally
             {
@@ -346,38 +386,87 @@ namespace AsusFanControlGUI
             }
         }
 
-        private void RefreshFanSpeeds()
+        private void ApplyCurrentCurve()
         {
-            try
-            {
-                var speeds = asusControl.GetFanSpeeds();
-                labelFanRpm.Text = speeds.Count == 0 ? "—" : string.Join(" / ", speeds);
-            }
-            catch (Exception exception)
-            {
-                labelFanRpm.Text = "N/A";
-                labelCurveStatus.Text = exception.Message;
-            }
+            if (!modeSelector.CurveSelected)
+                return;
+            var activeCurve = fanCurveControl.IsDragging ? committedCurve : fanCurveControl.Curve;
+            int requested = ApplySafetyLimits(activeCurve.GetFanSpeed(lastTemperature));
+            labelCurveStatus.Text = strings.Format("curveTarget", lastTemperature, requested);
+            if (IsControlEnabled)
+                ApplyFanSpeed(requested);
         }
 
         private void RefreshCpuTemperature(bool applyCurve)
         {
+            if (preview)
+            {
+                ApplyCurrentCurve();
+                return;
+            }
+
+            RefreshAll(true);
+        }
+
+        private void StartControlTimer()
+        {
+            controlTimer?.Stop();
+            controlTimer?.Dispose();
+            lastRampTime = rampClock.Elapsed.TotalSeconds;
+            controlTimer = new Timer
+            {
+                Interval = 100
+            };
+            controlTimer.Tick += (sender, args) =>
+            {
+                var pending = ApplyPendingOutputAsync();
+            };
+            controlTimer.Start();
+        }
+
+        private async Task ApplyPendingOutputAsync()
+        {
+            if (writingOutput || closingHardware || (!preview && asusControl == null))
+                return;
+            double now = rampClock.Elapsed.TotalSeconds;
+            double elapsed = now - lastRampTime;
+            lastRampTime = now;
+            int next = speedRamp.Next(desiredFanSpeed, elapsed, (double)rampUpInput.Value, (double)rampDownInput.Value, smoothingToggle.Checked, lastTemperature >= 90);
+            if (next == fanSpeed)
+                return;
+            int revision = outputRevision;
+            writingOutput = true;
             try
             {
-                var temperature = asusControl.Thermal_Read_Cpu_Temperature();
-                labelCpuTemperature.Text = temperature.ToString();
-                fanCurveControl.CurrentTemperature = temperature;
-                if (!applyCurve || !modeSelector.CurveSelected)
-                    return;
-                var requestedSpeed = ApplySafetyLimits(fanCurveControl.Curve.GetFanSpeed(temperature));
-                labelCurveStatus.Text = string.Format(strings["curveTarget"], temperature, requestedSpeed);
-                if (toggleFanControl.Checked)
-                    ApplyFanSpeed(requestedSpeed);
+                bool applied = preview || await Task.Run(() =>
+                {
+                    lock (hardwareGate)
+                    {
+                        if (closingHardware || revision != outputRevision)
+                            return false;
+                        asusControl.SetFanSpeeds(next);
+                        return true;
+                    }
+                });
+                if (applied && !IsDisposed)
+                {
+                    fanSpeed = next;
+                    labelAppliedSpeed.Text = next == 0 ? strings["auto"] : next + "%";
+                }
+                else if (!applied && fanSpeed >= 0)
+                    speedRamp.Reset(fanSpeed);
             }
             catch (Exception exception)
             {
-                labelCpuTemperature.Text = "—";
-                labelCurveStatus.Text = strings.Format("temperatureUnavailable", exception.Message);
+                if (!IsDisposed)
+                {
+                    SetConnectionStatus("unavailable", true);
+                    labelCurveStatus.Text = exception.Message;
+                }
+            }
+            finally
+            {
+                writingOutput = false;
             }
         }
 
@@ -397,23 +486,27 @@ namespace AsusFanControlGUI
 
         private void ApplyFanSpeed(int value)
         {
-            labelAppliedSpeed.Text = value == 0 ? strings["auto"] : value + "%";
-            if (fanSpeed == value || asusControl == null)
-                return;
-            fanSpeed = value;
-            asusControl.SetFanSpeeds(value);
+            if (desiredFanSpeed != value)
+            {
+                desiredFanSpeed = value;
+                outputRevision++;
+            }
+
+            if (value == 0)
+                speedRamp.Reset(0);
+            var pending = ApplyPendingOutputAsync();
         }
 
         private void UpdateControlMode()
         {
-            modeTitle.Text = strings[modeSelector.CurveSelected ? "curveModeTitle" : "manualTitle"];
-            modeDescription.Text = strings[modeSelector.CurveSelected ? "curveModeDescription" : "manualDescription"];
-            controlNote.Text = strings[toggleFanControl.Checked ? (modeSelector.CurveSelected ? "curveActive" : "manualActive") : "firmwareActive"];
-            manualSpeedSlider.Visible = !modeSelector.CurveSelected;
-            labelManualSpeed.Visible = !modeSelector.CurveSelected;
-            modeDescription.Visible = modeSelector.CurveSelected;
-            manualSpeedSlider.Enabled = !modeSelector.CurveSelected;
-            manualSpeedSlider.Cursor = manualSpeedSlider.Enabled ? Cursors.Hand : Cursors.Default;
+            bool curve = modeSelector.SelectedMode == FanControlMode.Curve;
+            bool manual = modeSelector.SelectedMode == FanControlMode.Manual;
+            curvePage.Visible = curve;
+            manualPage.Visible = manual;
+            offPage.Visible = !curve && !manual;
+            var active = curve ? curvePage : manual ? manualPage : offPage;
+            active.BringToFront();
+            manualSpeedSlider.Enabled = manual;
             manualSpeedSlider.Invalidate();
         }
 
@@ -429,7 +522,13 @@ namespace AsusFanControlGUI
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
             if (exitRequested || e.CloseReason != CloseReason.UserClosing || !toggleMinimizeToTray.Checked)
+            {
+                closingHardware = true;
+                controlTimer?.Stop();
+                timer?.Stop();
                 return;
+            }
+
             e.Cancel = true;
             Hide();
             EnsureTrayIcon();
@@ -479,9 +578,14 @@ namespace AsusFanControlGUI
         private void SetConnectionStatus(string text, bool error)
         {
             connectionKey = text;
-            labelConnectionStatus.Text = strings[text];
-            labelConnectionStatus.ForeColor = error ? Color.FromArgb(180, 45, 55) : DarkBlue;
-            labelConnectionStatus.BackColor = error ? Color.FromArgb(255, 235, 238) : Color.FromArgb(231, 242, 255);
+            if (controlError != null)
+            {
+                controlError.Visible = error;
+                controlError.Text = error ? strings[text] : "";
+            }
+
+            if (error)
+                labelCurveStatus.Text = strings[text];
         }
 
         private static void SaveSettings()
@@ -493,7 +597,11 @@ namespace AsusFanControlGUI
         private static void StyleNavigationButton(Button button, bool active)
         {
             var navigation = button as FluentButton;
-            if (navigation != null) { navigation.IsSelected = active; navigation.Invalidate(); }
+            if (navigation != null)
+            {
+                navigation.IsSelected = active;
+                navigation.Invalidate();
+            }
         }
 
         private static Label CreateLabel(string text, float size, FontStyle style, Color color)

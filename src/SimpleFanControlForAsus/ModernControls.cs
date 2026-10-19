@@ -348,60 +348,83 @@ namespace AsusFanControlGUI
         }
     }
 
+    internal enum FanControlMode
+    {
+        Off,
+        Manual,
+        Curve
+    }
+
     internal sealed class ModeSelector : Control
     {
-        private bool curveSelected;
-        public ModeSelector()
-        {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
-            Height = 42;
-            Cursor = Cursors.Hand;
-            TabStop = true;
-            ManualText = "Manual";
-            CurveText = "Fan curve";
-        }
-
-        public event EventHandler SelectionChanged;
-        public string ManualText { get; set; }
-        public string CurveText { get; set; }
+        private FanControlMode mode;
+        public string OffText { get; set; } = "Off";
+        public string ManualText { get; set; } = "Manual";
+        public string CurveText { get; set; } = "Curve";
 
         public bool CurveSelected
         {
             get
             {
-                return curveSelected;
+                return mode == FanControlMode.Curve;
+            }
+        }
+
+        public event EventHandler SelectionChanged;
+        public FanControlMode SelectedMode
+        {
+            get
+            {
+                return mode;
             }
 
             set
             {
-                if (curveSelected == value)
+                if (mode == value)
                     return;
-                curveSelected = value;
+                mode = value;
                 Invalidate();
                 SelectionChanged?.Invoke(this, EventArgs.Empty);
             }
+        }
+
+        public ModeSelector()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            Height = 44;
+            TabStop = true;
+            Cursor = Cursors.Hand;
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             DrawingHelper.Configure(e.Graphics);
             e.Graphics.Clear(UiPalette.Surface);
-            var outer = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var path = DrawingHelper.RoundedRectangle(outer, 9))
-            using (var fill = new SolidBrush(Color.FromArgb(242, 245, 249)))
+            using (var path = DrawingHelper.RoundedRectangle(new Rectangle(0, 0, Width - 1, Height - 1), 8))
+            using (var fill = new SolidBrush(Color.FromArgb(241, 245, 249)))
                 e.Graphics.FillPath(fill, path);
-            var half = Width / 2;
-            var selected = curveSelected ? new Rectangle(half + 3, 3, Width - half - 6, Height - 6) : new Rectangle(3, 3, half - 5, Height - 6);
-            using (var path = DrawingHelper.RoundedRectangle(selected, 7))
-            using (var fill = new SolidBrush(UiPalette.Surface))
-            using (var border = new Pen(UiPalette.Border))
+            var labels = new[]
             {
-                e.Graphics.FillPath(fill, path);
-                e.Graphics.DrawPath(border, path);
+                OffText,
+                ManualText,
+                CurveText
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                var bounds = new Rectangle(i * Width / 3 + 3, 3, Width / 3 - 6, Height - 6);
+                bool selected = (int)mode == i;
+                if (selected)
+                    using (var path = DrawingHelper.RoundedRectangle(bounds, 6))
+                    using (var fill = new SolidBrush(UiPalette.Surface))
+                    using (var border = new Pen(UiPalette.Border))
+                    {
+                        e.Graphics.FillPath(fill, path);
+                        e.Graphics.DrawPath(border, path);
+                    }
+
+                TextRenderer.DrawText(e.Graphics, labels[i], Font, bounds, selected ? UiPalette.PrimaryDark : UiPalette.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
             }
 
-            DrawText(e.Graphics, ManualText, new Rectangle(0, 0, half, Height), !curveSelected);
-            DrawText(e.Graphics, CurveText, new Rectangle(half, 0, Width - half, Height), curveSelected);
             if (Focused)
                 ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(ClientRectangle, -2, -2));
         }
@@ -409,31 +432,26 @@ namespace AsusFanControlGUI
         protected override void OnMouseUp(MouseEventArgs e)
         {
             base.OnMouseUp(e);
-            if (e.Button == MouseButtons.Left)
-            {
-                Focus();
-                CurveSelected = e.X >= Width / 2;
-            }
-        }
-
-        protected override void OnKeyDown(KeyEventArgs e)
-        {
-            base.OnKeyDown(e);
-            if (e.KeyCode == Keys.Left)
-                CurveSelected = false;
-            else if (e.KeyCode == Keys.Right)
-                CurveSelected = true;
-        }
-
-        private void DrawText(Graphics graphics, string text, Rectangle bounds, bool selected)
-        {
-            TextRenderer.DrawText(graphics, text, Font, bounds, selected ? UiPalette.PrimaryDark : UiPalette.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+            if (e.Button != MouseButtons.Left)
+                return;
+            Focus();
+            SelectedMode = (FanControlMode)Math.Max(0, Math.Min(2, e.X * 3 / Math.Max(1, Width)));
         }
 
         protected override bool IsInputKey(Keys keyData)
         {
             var key = keyData & Keys.KeyCode;
             return key == Keys.Left || key == Keys.Right || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+            {
+                SelectedMode = (FanControlMode)Math.Max(0, Math.Min(2, (int)mode + (e.KeyCode == Keys.Right ? 1 : -1)));
+                e.Handled = true;
+            }
         }
 
         protected override void OnGotFocus(EventArgs e)

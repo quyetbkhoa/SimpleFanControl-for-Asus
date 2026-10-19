@@ -47,3 +47,27 @@ tray startup and restore. Preview mode does not read or write the ASUS driver.
 The existing PsExec PID regression and Windows startup task definition checks
 remain in the smoke test. Hardware, service and launcher source are unchanged
 by this UI redesign.
+
+## 2.4 revision
+
+- Removed the custom brand/status header and overview title/subtitle.
+- One three-state control: Off, Manual, Curve. Only the active editor is visible.
+- Removed the side point editor. Add point offers start/end positions (0–110°C
+  storage range); the plot expands when needed.
+- Dragging clamps temperature order but propagates speed changes: earlier
+  higher speeds are capped, later lower speeds are raised. Other valid points stay.
+- Selected-point geometry follows sub-integer pointer coordinates; storage is
+  rounded on commit. Axes stay fixed throughout a drag. Sensor refresh no longer
+  rebuilds point-picker controls during pointer movement.
+- Right-click and arrow keys still offer step editing. Reset is a text button.
+- Native reads/writes run off the UI thread, serialized through a single lock.
+  Writes are coalesced; stale queued requests are discarded. During drag the
+  controller uses the last committed curve until release, while temperature
+  monitoring continues.
+- Smoothing applies a time-based rise/fall rate (20/5 percentage points/sec by
+  default). First enable uses the requested target directly: firmware output
+  percentage is unknown. Off bypasses smoothing. An observed CPU temperature
+  >=90°C bypasses upward smoothing. The rates are configurable from 1 to 100.
+- Actual hardware smoothing and perceived pointer fluidity need on-device
+  confirmation. Automated checks cover the ramp math and preview UI, not the
+  ASUS driver's runtime latency.

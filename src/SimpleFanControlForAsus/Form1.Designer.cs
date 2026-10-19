@@ -11,6 +11,7 @@ namespace AsusFanControlGUI
                 components?.Dispose();
                 trayIcon?.Dispose();
                 timer?.Dispose();
+                controlTimer?.Dispose();
             }
 
             base.Dispose(disposing);

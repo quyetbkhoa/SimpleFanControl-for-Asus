@@ -23,6 +23,16 @@ namespace AsusFanControlGUI.Properties {
             set { this["language"] = value; }
         }
         
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool smoothingEnabled { get { return (bool)this["smoothingEnabled"]; } set { this["smoothingEnabled"]=value; } }
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("20")]
+        public int rampUpPerSecond { get { return (int)this["rampUpPerSecond"]; } set { this["rampUpPerSecond"]=value; } }
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("5")]
+        public int rampDownPerSecond { get { return (int)this["rampDownPerSecond"]; } set { this["rampDownPerSecond"]=value; } }
+
         public static Settings Default {
             get {
                 return defaultInstance;

@@ -13,6 +13,16 @@ namespace AsusFanControlGUI
         private static readonly Dictionary<string, string> Vietnamese =
             new Dictionary<string, string>
             {
+                { "off", "Tắt" },
+                { "offTitle", "Đang dùng điều khiển tự động ASUS" },
+                { "offDescription", "Ứng dụng không đặt tốc độ quạt. Chọn Thủ công hoặc Đường cong ở trên để bắt đầu." },
+                { "addPoint", "Thêm điểm" },
+                { "addStart", "Thêm ở đầu" },
+                { "addEnd", "Thêm ở cuối" },
+                { "smoothingTitle", "Chuyển tốc độ quạt mượt" },
+                { "smoothingDescription", "Giới hạn tốc độ thay đổi theo thời gian. Tăng ngay khi CPU từ 90°C; Tắt luôn trả quyền về ASUS ngay." },
+                { "rampUp", "Tăng (điểm %/giây)" },
+                { "rampDown", "Giảm (điểm %/giây)" },
                 { "navControl", "Điều khiển quạt" },
                 { "navSettings", "Cài đặt" },
                 { "dashboardTitle", "Tổng quan làm mát" },
@@ -37,7 +47,7 @@ namespace AsusFanControlGUI
                 { "curveModeTitle", "Điều khiển theo nhiệt độ" },
                 { "curveModeDescription", "Tốc độ quạt được nội suy tự động theo nhiệt độ CPU." },
                 { "curveTitle", "Đường cong quạt" },
-                { "curveSubtitle", "Kéo điểm hoặc nhập bên phải · Vạch cam: CPU hiện tại" },
+                { "curveSubtitle", "Kéo điểm để chỉnh · Vạch cam: CPU hiện tại · Phím mũi tên để chỉnh từng bước" },
                 { "resetCurve", "Đặt lại" },
                 { "waitingTemperature", "Đang chờ dữ liệu nhiệt độ…" },
                 { "general", "Chung" },
@@ -83,6 +93,16 @@ namespace AsusFanControlGUI
         private static readonly Dictionary<string, string> English =
             new Dictionary<string, string>
             {
+                { "off", "Off" },
+                { "offTitle", "ASUS automatic control is active" },
+                { "offDescription", "The app is not setting fan speed. Select Manual or Fan curve above to begin." },
+                { "addPoint", "Add point" },
+                { "addStart", "Add at start" },
+                { "addEnd", "Add at end" },
+                { "smoothingTitle", "Smooth fan speed changes" },
+                { "smoothingDescription", "Limit speed changes over time. CPU at 90°C or above bypasses upward smoothing; Off returns control to ASUS immediately." },
+                { "rampUp", "Rise (% points/sec)" },
+                { "rampDown", "Fall (% points/sec)" },
                 { "navControl", "Fan control" },
                 { "navSettings", "Settings" },
                 { "dashboardTitle", "Cooling overview" },
@@ -107,7 +127,7 @@ namespace AsusFanControlGUI
                 { "curveModeTitle", "Temperature-based control" },
                 { "curveModeDescription", "Fan speed is interpolated automatically from CPU temperature." },
                 { "curveTitle", "Fan curve" },
-                { "curveSubtitle", "Drag or enter values on the right · Orange: current CPU" },
+                { "curveSubtitle", "Drag to edit · Orange: current CPU · Arrow keys adjust the selected point" },
                 { "resetCurve", "Reset" },
                 { "waitingTemperature", "Waiting for temperature data…" },
                 { "general", "General" },

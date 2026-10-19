@@ -4,7 +4,7 @@ Modern bilingual fan control for compatible Asus laptops. The project is based
 on [Karmel0x/AsusFanControl](https://github.com/Karmel0x/AsusFanControl) and keeps
 that repository as its upstream history.
 
-![Dashboard](docs/images/v2.3/dashboard-vi.png)
+![Dashboard](docs/images/v2.4/dashboard-vi.png)
 
 ## Features / Tính năng
 
@@ -12,7 +12,10 @@ that repository as its upstream history.
 - Remembered language selection and DPI-aware text and charts.
 - Live CPU temperature, fan RPM and applied output.
 - Manual fan control and draggable temperature curve.
-- Numeric point editor and keyboard alternatives to curve dragging.
+- Three control states: Off (ASUS firmware), Manual (slider only), Curve (graph only).
+- Add endpoints; dragging adjusts neighboring speeds to keep the curve monotonic.
+- Keyboard and right-click step controls provide alternatives to dragging.
+- Configurable rise/fall slew rates; upward smoothing is bypassed at observed CPU ≥90°C.
 - Compact Windows-style navigation and DPI-scaled layouts.
 - Current CPU temperature marker on the curve.
 - Polling intervals of 1, 2, 3, 5 or 10 seconds; default is 2 seconds.
@@ -60,7 +63,7 @@ To create a runnable package, place the official Microsoft Sysinternals
 .\scripts\package.ps1
 ```
 
-The package is written to `dist\SimpleFanControl-for-Asus-v2.3.0` and includes
+The package is written to `dist\SimpleFanControl-for-Asus-v2.4.0` and includes
 SHA-256 checksums.
 
 ## Run / Chạy ứng dụng

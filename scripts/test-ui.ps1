@@ -1,5 +1,5 @@
 param(
-    [string]$OutputDirectory = 'docs\images\v2.3'
+    [string]$OutputDirectory = 'docs\images\v2.4'
 )
 
 $ErrorActionPreference = 'Stop'
