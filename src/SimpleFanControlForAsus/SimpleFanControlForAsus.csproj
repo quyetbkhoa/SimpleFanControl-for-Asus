@@ -85,6 +85,8 @@
     </Compile>
     <Compile Include="StartupTaskManager.cs" />
     <Compile Include="Localization.cs" />
+    <Compile Include="FluentControls.cs" />
+    <Compile Include="Form1.Interface.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Form1.resx">

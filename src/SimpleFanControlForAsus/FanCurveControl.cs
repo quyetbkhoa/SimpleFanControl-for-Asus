@@ -12,17 +12,50 @@ namespace AsusFanControlGUI
         private const int PointHitRadius = 22;
         private FanCurve curve = FanCurve.CreateDefault();
         private int draggedPointIndex = -1;
+        private int selectedPointIndex;
         private double? currentTemperature;
         public FanCurveControl()
         {
             DoubleBuffered = true;
             BackColor = Color.White;
             Cursor = Cursors.Default;
-            MinimumSize = new Size(280, 180);
-            SetStyle(ControlStyles.ResizeRedraw, true);
+            MinimumSize = new Size(280, 140);
+            TabStop = true;
+            SetStyle(ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
         }
 
         public event EventHandler CurveChanged;
+        public event EventHandler SelectedPointChanged;
+        public int SelectedPointIndex
+        {
+            get
+            {
+                return selectedPointIndex;
+            }
+
+            set
+            {
+                int index = Math.Max(0, Math.Min(curve.Points.Count - 1, value));
+                if (selectedPointIndex == index)
+                    return;
+                selectedPointIndex = index;
+                Invalidate();
+                SelectedPointChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public void UpdatePoint(int index, int temperature, int speed)
+        {
+            if (index < 0 || index >= curve.Points.Count)
+                return;
+            var points = curve.Points;
+            points[index].Temperature = Math.Max(index == 0 ? 30 : points[index - 1].Temperature + 1, Math.Min(index == points.Count - 1 ? 100 : points[index + 1].Temperature - 1, temperature));
+            points[index].FanSpeed = Math.Max(index == 0 ? 0 : points[index - 1].FanSpeed, Math.Min(index == points.Count - 1 ? 100 : points[index + 1].FanSpeed, speed));
+            SelectedPointIndex = index;
+            Invalidate();
+            CurveChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public FanCurve Curve
         {
             get
@@ -33,7 +66,9 @@ namespace AsusFanControlGUI
             set
             {
                 curve = value ?? FanCurve.CreateDefault();
+                selectedPointIndex = Math.Min(selectedPointIndex, curve.Points.Count - 1);
                 Invalidate();
+                SelectedPointChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -68,7 +103,8 @@ namespace AsusFanControlGUI
             var flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
             using (var grid = new Pen(UiPalette.Border))
             {
-                for (int speed = 0; speed <= 100; speed += 20)
+                int speedStep = plot.Height < Scale(120) ? 50 : 20;
+                for (int speed = 0; speed <= 100; speed += speedStep)
                 {
                     int y = (int)SpeedToY(speed, plot);
                     g.DrawLine(grid, plot.Left, y, plot.Right, y);
@@ -124,13 +160,16 @@ namespace AsusFanControlGUI
             {
                 var vertex = vertices[i];
                 int radius = Scale(6);
-                using (var fill = new SolidBrush(i == draggedPointIndex ? UiPalette.Orange : UiPalette.Primary))
+                using (var fill = new SolidBrush(UiPalette.Primary))
                 using (var ring = new Pen(Color.White, Scale(2)))
                 {
                     g.FillEllipse(fill, vertex.X - radius, vertex.Y - radius, radius * 2, radius * 2);
                     g.DrawEllipse(ring, vertex.X - radius, vertex.Y - radius, radius * 2, radius * 2);
                 }
 
+                if (i == selectedPointIndex)
+                    using (var selection = new Pen(UiPalette.PrimaryDark, Scale(1)))
+                        g.DrawEllipse(selection, vertex.X - radius - Scale(3), vertex.Y - radius - Scale(3), (radius + Scale(3)) * 2, (radius + Scale(3)) * 2);
                 string label = curve.Points[i].Temperature + "° · " + curve.Points[i].FanSpeed + "%";
                 var size = TextRenderer.MeasureText(g, label, Font, new Size(int.MaxValue, int.MaxValue), flags);
                 int x = Math.Max(plot.Left, Math.Min(plot.Right - size.Width, (int)vertex.X - size.Width / 2));
@@ -142,6 +181,9 @@ namespace AsusFanControlGUI
                     g.FillRectangle(fill, bounds);
                 TextRenderer.DrawText(g, label, Font, bounds, UiPalette.PrimaryDark, flags | TextFormatFlags.HorizontalCenter);
             }
+
+            if (Focused)
+                ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle, -2, -2), UiPalette.PrimaryDark, BackColor);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -152,6 +194,7 @@ namespace AsusFanControlGUI
             draggedPointIndex = HitTestPoint(e.Location);
             if (draggedPointIndex < 0)
                 return;
+            SelectedPointIndex = draggedPointIndex;
             Focus();
             Cursor = Cursors.SizeAll;
             Capture = true;
@@ -178,6 +221,30 @@ namespace AsusFanControlGUI
             point.Temperature = Math.Max(minimumTemperature, Math.Min(maximumTemperature, temperature));
             point.FanSpeed = Math.Max(minimumSpeed, Math.Min(maximumSpeed, fanSpeed));
             Invalidate();
+            SelectedPointChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            var key = keyData & Keys.KeyCode;
+            return key == Keys.Left || key == Keys.Right || key == Keys.Up || key == Keys.Down || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Control && (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right))
+                SelectedPointIndex += e.KeyCode == Keys.Right ? 1 : -1;
+            else
+            {
+                var point = curve.Points[selectedPointIndex];
+                if (e.KeyCode != Keys.Left && e.KeyCode != Keys.Right && e.KeyCode != Keys.Up && e.KeyCode != Keys.Down)
+                    return;
+                UpdatePoint(selectedPointIndex, point.Temperature + (e.KeyCode == Keys.Left ? -1 : e.KeyCode == Keys.Right ? 1 : 0), point.FanSpeed + (e.KeyCode == Keys.Down ? -1 : e.KeyCode == Keys.Up ? 1 : 0));
+            }
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
         }
 
         protected override void OnMouseUp(MouseEventArgs e)

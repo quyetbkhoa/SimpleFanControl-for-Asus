@@ -1,4 +1,4 @@
-SIMPLEFANCONTROL FOR ASUS 2.2.1
+SIMPLEFANCONTROL FOR ASUS 2.3.0
 ENGLISH / TIENG VIET
 
 START / KHOI DONG
@@ -22,6 +22,10 @@ FAN CONTROL / DIEU KHIEN QUAT
   Duong cong: toc do chay theo bieu do nhiet do.
 - Blue points edit the curve; orange line is current CPU temperature.
   Diem xanh de chinh bieu do; vach cam la nhiet do CPU hien tai.
+- Or select a point, enter temperature/speed and click Apply point.
+  Hoac chon diem, nhap nhiet do/toc do, roi bam Ap dung diem.
+- Chart keyboard: arrows adjust; Ctrl+Left/Right selects another point.
+  Ban phim: mui ten de chinh; Ctrl+Trai/Phai de chon diem khac.
 - Reset default: 30C/40%, 55C/50%, 70C/65%, 80C/90%, 90C/100%.
 
 SETTINGS / CAI DAT

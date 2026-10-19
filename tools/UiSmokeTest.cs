@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Xml;
 using AsusFanControlGUI;
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.7.2")]
 
 // Runs the real form with hardware access disabled. Usage: UiSmokeTest.exe output-directory
 internal static class UiSmokeTest
@@ -40,6 +41,7 @@ internal static class UiSmokeTest
             form.Show();
             form.Activate();
             Application.DoEvents();
+            Console.WriteLine("Layout DPI=" + form.DeviceDpi + "; dimensions=" + form.CurrentAutoScaleDimensions + "; baseline=" + form.AutoScaleDimensions);
             var language = Field<Control>(form, "languageButton");
             var localizer = form.GetType().GetField("strings", Private).GetValue(form);
             var property = localizer.GetType().GetProperty("Language");
@@ -67,11 +69,25 @@ internal static class UiSmokeTest
             int speed = (int)point.GetType().GetProperty("FanSpeed").GetValue(point, null);
             int x = plot.Left + (int)Math.Round((temperature - 30) / 70.0 * plot.Width);
             int y = plot.Bottom - (int)Math.Round(speed / 100.0 * plot.Height);
-            Mouse(curve, 0x201, x, y);
-            Mouse(curve, 0x200, x + 8, y - 8);
-            Mouse(curve, 0x202, x + 8, y - 8);
+            Mouse(curve, 0x201, x, y, false);
+            Mouse(curve, 0x200, x + 8, y - 8, false);
+            Mouse(curve, 0x202, x + 8, y - 8, false);
+            Application.DoEvents();
             int after = (int)point.GetType().GetProperty("FanSpeed").GetValue(point, null);
-            if (after <= speed) throw new Exception("Curve dragging did not update speed.");
+            if (after <= speed) throw new Exception("Curve dragging did not update speed. Before=" + speed + "; after=" + after);
+            Field<NumericUpDown>(form, "pointTemperature").Value = 72;
+            Field<NumericUpDown>(form, "pointSpeed").Value = 68;
+            Field<Button>(form, "applyPointButton").PerformClick();
+            if ((int)point.GetType().GetProperty("Temperature").GetValue(point, null) != 72 ||
+                (int)point.GetType().GetProperty("FanSpeed").GetValue(point, null) != 68)
+                throw new Exception("Numeric point editor did not apply the requested values.");
+            curve.GetType().GetMethod("OnKeyDown", Private).Invoke(curve, new object[] { new KeyEventArgs(Keys.Up) });
+            if ((int)point.GetType().GetProperty("FanSpeed").GetValue(point, null) != 69)
+                throw new Exception("Keyboard point adjustment failed.");
+            if (Field<CheckBox>(form, "toggleFanControl").Checked)
+                throw new Exception("Editing the curve must not enable hardware control.");
+            form.GetType().GetMethod("ResetFanCurve_Click", Private).Invoke(form, new object[] { form, EventArgs.Empty });
+            Console.WriteLine("PASS: numeric curve editor, keyboard adjustment and reset; hardware control stays disabled.");
             var mode = Field<Control>(form, "modeSelector");
             Mouse(mode, 0x201, mode.Width - 20, mode.Height / 2);
             Mouse(mode, 0x202, mode.Width - 20, mode.Height / 2);
@@ -116,11 +132,11 @@ internal static class UiSmokeTest
     {
         return (T)form.GetType().GetField(name, Private).GetValue(form);
     }
-    private static void Mouse(Control control, uint message, int x, int y)
+    private static void Mouse(Control control, uint message, int x, int y, bool pump = true)
     {
         SendMessage(control.Handle, message, message == 0x202 ? IntPtr.Zero : new IntPtr(1),
             new IntPtr((y << 16) | (x & 65535)));
-        Application.DoEvents();
+        if (pump) Application.DoEvents();
     }
     private static void Click(Control control)
     {
