@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.1.0'
+    [string]$Version = '2.2.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,8 +31,7 @@ $files = @(
     'AsusFanControl.exe.config',
     'SimpleFanControlForAsus.exe',
     'SimpleFanControlForAsus.exe.config',
-    'AsusWinIO64.dll',
-    'run.bat'
+    'AsusWinIO64.dll'
 )
 
 foreach ($file in $files) {

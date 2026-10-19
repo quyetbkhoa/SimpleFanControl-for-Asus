@@ -1,72 +1,113 @@
 using System;
-using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace AsusFanControlGUI
 {
     internal static class StartupTaskManager
     {
         private const string TaskName = "SimpleFanControl for Asus";
+        private const int TaskNotFound = unchecked((int)0x80070002);
+
+        private static dynamic Connect()
+        {
+            var type = Type.GetTypeFromProgID("Schedule.Service", true);
+            dynamic scheduler = Activator.CreateInstance(type);
+            scheduler.Connect();
+            return scheduler;
+        }
 
         public static bool IsEnabled()
         {
-            return RunSchtasks("/Query /TN " + Quote(TaskName), false) == 0;
+            dynamic scheduler = Connect();
+            try
+            {
+                dynamic task = scheduler.GetFolder("\\").GetTask(TaskName);
+                return task.Enabled;
+            }
+            catch (COMException exception) when (exception.HResult == TaskNotFound)
+            {
+                return false;
+            }
+        }
+
+        public static bool IsCurrentConfiguration()
+        {
+            dynamic scheduler = Connect();
+            try
+            {
+                dynamic task = scheduler.GetFolder("\\").GetTask(TaskName);
+                dynamic definition = task.Definition;
+                if (definition.Actions.Count != 1)
+                    return false;
+                dynamic action = definition.Actions.Item(1);
+                return string.Equals((string)action.Path, ExecutablePath,
+                           StringComparison.OrdinalIgnoreCase) &&
+                       (string)action.Arguments == "--launch-interactive --start-tray" &&
+                       !definition.Settings.DisallowStartIfOnBatteries &&
+                       !definition.Settings.StopIfGoingOnBatteries;
+            }
+            catch (COMException exception) when (exception.HResult == TaskNotFound)
+            {
+                return false;
+            }
+        }
+
+        private static string ExecutablePath
+        {
+            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SimpleFanControlForAsus.exe"); }
+        }
+
+        private static object CreateDefinition(dynamic scheduler, string executable)
+        {
+            dynamic definition = scheduler.NewTask(0);
+            definition.RegistrationInfo.Description = "Start SimpleFanControl for Asus in the notification area after Windows sign-in.";
+            definition.Principal.UserId = "SYSTEM";
+            definition.Principal.LogonType = 5; // Service account; no password is stored.
+            definition.Principal.RunLevel = 1;
+            definition.Settings.Enabled = true;
+            definition.Settings.AllowDemandStart = true;
+            definition.Settings.StartWhenAvailable = true;
+            definition.Settings.DisallowStartIfOnBatteries = false;
+            definition.Settings.StopIfGoingOnBatteries = false;
+            definition.Settings.ExecutionTimeLimit = "PT1M";
+            definition.Settings.MultipleInstances = 2; // Ignore another overlapping launch.
+            dynamic trigger = definition.Triggers.Create(9); // At user sign-in.
+            trigger.Enabled = true;
+            trigger.Delay = "PT15S";
+            dynamic action = definition.Actions.Create(0);
+            action.Path = executable;
+            action.Arguments = "--launch-interactive --start-tray";
+            action.WorkingDirectory = Path.GetDirectoryName(executable);
+            return definition;
+        }
+
+        // Used by the smoke test to validate the task without installing or running it.
+        internal static string GetDefinitionXml(string executable)
+        {
+            dynamic scheduler = Connect();
+            dynamic definition = CreateDefinition(scheduler, executable);
+            dynamic action = definition.Actions.Item(1);
+            if ((string)action.Path != executable)
+                throw new InvalidOperationException("Windows did not retain the executable path.");
+            return definition.XmlText;
         }
 
         public static void SetEnabled(bool enabled)
         {
+            dynamic scheduler = Connect();
+            dynamic folder = scheduler.GetFolder("\\");
             if (!enabled)
             {
-                var deleteExitCode = RunSchtasks(
-                    "/Delete /F /TN " + Quote(TaskName), true);
-                if (deleteExitCode != 0 && IsEnabled())
-                    throw new InvalidOperationException("Windows could not remove the startup task.");
+                try { folder.DeleteTask(TaskName, 0); }
+                catch (COMException exception) when (exception.HResult == TaskNotFound) { }
                 return;
             }
-
-            var launcherPath = Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "run.bat");
-            if (!File.Exists(launcherPath))
-                throw new FileNotFoundException(
-                    "run.bat must be next to the application.", launcherPath);
-
-            var taskCommand = "cmd.exe /c \"\"" + launcherPath + "\"\"";
-            var arguments = "/Create /F /TN " + Quote(TaskName) +
-                            " /SC ONLOGON /DELAY 0000:10 /RU SYSTEM /RL HIGHEST /TR " +
-                            Quote(taskCommand);
-
-            if (RunSchtasks(arguments, true) != 0)
-                throw new InvalidOperationException("Windows could not create the startup task.");
-        }
-
-        private static int RunSchtasks(string arguments, bool wait)
-        {
-            using (var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.System),
-                    "schtasks.exe"),
-                Arguments = arguments,
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden
-            }))
-            {
-                if (process == null)
-                    return -1;
-
-                if (!wait)
-                    process.WaitForExit(3000);
-                else
-                    process.WaitForExit();
-
-                return process.HasExited ? process.ExitCode : -1;
-            }
-        }
-
-        private static string Quote(string value)
-        {
-            return "\"" + value.Replace("\"", "\\\"") + "\"";
+            if (!File.Exists(ExecutablePath))
+                throw new FileNotFoundException("The application executable is missing.", ExecutablePath);
+            dynamic definition = CreateDefinition(scheduler, ExecutablePath);
+            // The hardware UI already runs as SYSTEM, which can register this task.
+            folder.RegisterTaskDefinition(TaskName, definition, 6, null, null, 5, null);
         }
     }
 }

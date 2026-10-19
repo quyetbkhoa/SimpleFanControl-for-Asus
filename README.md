@@ -4,11 +4,12 @@ Modern bilingual fan control for compatible Asus laptops. The project is based
 on [Karmel0x/AsusFanControl](https://github.com/Karmel0x/AsusFanControl) and keeps
 that repository as its upstream history.
 
-![Dashboard](docs/images/bilingual-dashboard-preview.png)
+![Dashboard](docs/images/v2.2/dashboard-vi.png)
 
 ## Features / Tính năng
 
-- English and Vietnamese interface / Giao diện song ngữ Anh–Việt.
+- Separate English and Vietnamese interfaces, with a flag switch at the top right.
+- Remembered language selection and DPI-aware text and charts.
 - Live CPU temperature, fan RPM and applied output.
 - Manual fan control and draggable temperature curve.
 - Current CPU temperature marker on the curve.
@@ -57,13 +58,19 @@ To create a runnable package, place the official Microsoft Sysinternals
 .\scripts\package.ps1
 ```
 
-The package is written to `dist\SimpleFanControl-for-Asus-v2.1.0` and includes
+The package is written to `dist\SimpleFanControl-for-Asus-v2.2.0` and includes
 SHA-256 checksums.
 
 ## Run / Chạy ứng dụng
 
-Open `SimpleFanControlForAsus.exe` from the generated package. On systems that
-require SYSTEM access, the executable redirects through `run.bat` and PsExec.
+Double-click `SimpleFanControlForAsus.exe` from the complete generated package.
+Windows may ask for administrator consent. The executable starts PsExec directly
+to open the hardware interface as SYSTEM, without a CMD or batch launcher.
+Keep `PsExec.exe` and the other release files beside the executable.
+The optional Windows startup task also launches the EXE directly, in the system
+tray, 15 seconds after sign-in. It runs on battery as well as AC power. Enable it
+in Settings → Start with Windows. Previously enabled batch-based tasks are
+migrated when the new application opens. Keep the release in a stable directory.
 
 The ASUS System Control Interface and `ASUS System Analysis` service must be
 installed and running. `AsusWinIO64.dll` is licensed to ASUSTek Computer Inc.
@@ -73,3 +80,16 @@ installed and running. `AsusWinIO64.dll` is licensed to ASUSTek Computer Inc.
 Fan control directly affects cooling hardware. Keep `Safe output limits`
 enabled unless you understand the consequences. Turning control off or exiting
 the application returns all fans to ASUS firmware control.
+
+## UI verification
+
+Run `scripts/test-ui.ps1` to exercise the real form without loading the ASUS driver.
+This checks mouse language switching, chart dragging, mode selection, tray startup,
+the Windows task definition (without registering it), and renders
+both pages in Vietnamese and English. Preview values are simulated; this check
+does not validate hardware control or the elevated PsExec launch.
+
+The hardware backend still needs ASUS System Control Interface, its System
+Analysis service and AsusWinIO64.dll. Removing the DLL requires a different,
+model-validated hardware backend; bundling or renaming it would not remove that
+dependency.

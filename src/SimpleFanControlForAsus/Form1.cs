@@ -1,6 +1,7 @@
 using AsusFanControl;
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -14,7 +15,6 @@ namespace AsusFanControlGUI
         private static readonly Color TextPrimary = Color.FromArgb(28, 39, 55);
         private static readonly Color TextSecondary = Color.FromArgb(103, 116, 135);
         private static readonly Color PageBackground = Color.FromArgb(245, 248, 252);
-
         private AsusControl asusControl;
         private int fanSpeed = -1;
         private Timer timer;
@@ -22,7 +22,6 @@ namespace AsusFanControlGUI
         private bool exitRequested;
         private bool initializing = true;
         private bool refreshing;
-
         private Panel dashboardPage;
         private Panel settingsPage;
         private Button dashboardNavigationButton;
@@ -35,7 +34,16 @@ namespace AsusFanControlGUI
         private Label labelManualSpeed;
         private Label labelSettingsStatus;
         private ToggleSwitch toggleFanControl;
-        private ToggleSwitch toggleFanCurve;
+        private ModeSelector modeSelector;
+        private readonly Localizer strings = new Localizer(Properties.Settings.Default.language == "en" ? UiLanguage.English : UiLanguage.Vietnamese);
+        private readonly Dictionary<Control, string> translations = new Dictionary<Control, string>();
+        private LanguageButton languageButton;
+        private string connectionKey = "initializing";
+        private bool preview;
+        private readonly bool startInTray;
+        private Label modeTitle;
+        private Label modeDescription;
+        private Label controlNote;
         private ToggleSwitch toggleStartWithWindows;
         private ToggleSwitch toggleAutoRefresh;
         private ToggleSwitch toggleMinimizeToTray;
@@ -44,20 +52,38 @@ namespace AsusFanControlGUI
         private ModernSlider manualSpeedSlider;
         private FanCurveControl fanCurveControl;
         private ComboBox pollingComboBox;
+        public Form1() : this(false) { }
 
-        public Form1()
+        public Form1(bool startInTray)
         {
+            this.startInTray = startInTray;
             InitializeComponent();
+            if (startInTray)
+            {
+                Opacity = 0;
+                ShowInTaskbar = false;
+                Shown += (sender, args) =>
+                {
+                    Hide();
+                    EnsureTrayIcon();
+                    trayIcon.Visible = true;
+                    Opacity = 1;
+                    ShowInTaskbar = true;
+                };
+            }
+            preview = Environment.GetEnvironmentVariable("SIMPLEFANCONTROL_UI_PREVIEW") == "1";
+            DoubleBuffered = true;
             BuildInterface();
             LoadSettingsIntoInterface();
             WireEvents();
-
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             Load += Form1_Load;
             FormClosing += Form1_FormClosing;
             Resize += Form1_Resize;
             initializing = false;
+            ApplyLanguage();
         }
+
 
         private void BuildInterface()
         {
@@ -68,16 +94,29 @@ namespace AsusFanControlGUI
                 Dock = DockStyle.Fill,
                 BackColor = PageBackground
             };
-
             dashboardPage = BuildDashboardPage();
             settingsPage = BuildSettingsPage();
             contentHost.Controls.Add(settingsPage);
             contentHost.Controls.Add(dashboardPage);
-
             Controls.Add(contentHost);
             Controls.Add(sidebar);
             Controls.Add(header);
             ShowPage(dashboardPage);
+        }
+
+        private Label LocalLabel(string key, float size = 9, bool bold = false, Color? color = null)
+        {
+            var label = CreateLabel(strings[key], size, bold ? FontStyle.Bold : FontStyle.Regular, color ?? TextPrimary);
+            label.AutoSize = true;
+            translations.Add(label, key);
+            return label;
+        }
+
+        private Button LocalButton(string key, bool primary = false)
+        {
+            var button = CreateButton(strings[key], primary);
+            translations.Add(button, key);
+            return button;
         }
 
         private Control BuildHeader()
@@ -85,43 +124,43 @@ namespace AsusFanControlGUI
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 72,
-                BackColor = Color.White,
-                Padding = new Padding(22, 0, 22, 0)
+                Height = 80,
+                BackColor = Color.White
             };
-
-            var logo = new Panel
-            {
-                Location = new Point(22, 17),
-                Size = new Size(38, 38),
-                BackColor = Blue
-            };
-            var logoText = CreateLabel("S", 16, FontStyle.Bold, Color.White);
-            logoText.Dock = DockStyle.Fill;
-            logoText.TextAlign = ContentAlignment.MiddleCenter;
-            logo.Controls.Add(logoText);
-
-            var title = CreateLabel("SimpleFanControl", 15, FontStyle.Bold, DarkBlue);
-            title.Location = new Point(72, 14);
+            var logo = CreateLabel("S", 21, FontStyle.Bold, Color.White);
+            logo.BackColor = Blue;
+            logo.SetBounds(24, 18, 42, 42);
+            logo.TextAlign = ContentAlignment.MiddleCenter;
+            var title = CreateLabel("SimpleFanControl", 17, FontStyle.Bold, DarkBlue);
             title.AutoSize = true;
+            title.Location = new Point(80, 15);
             var subtitle = CreateLabel("for Asus", 9, FontStyle.Regular, TextSecondary);
-            subtitle.Location = new Point(74, 40);
             subtitle.AutoSize = true;
-
-            labelConnectionStatus = CreateLabel("Initializing / Đang khởi tạo", 8, FontStyle.Bold, TextSecondary);
-            labelConnectionStatus.AutoSize = false;
-            labelConnectionStatus.Size = new Size(180, 32);
+            subtitle.Location = new Point(82, 47);
+            languageButton = new LanguageButton
+            {
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            labelConnectionStatus = CreateLabel("", 9, FontStyle.Bold, DarkBlue);
             labelConnectionStatus.TextAlign = ContentAlignment.MiddleCenter;
-            labelConnectionStatus.BackColor = Color.FromArgb(235, 241, 249);
-            labelConnectionStatus.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            labelConnectionStatus.Location = new Point(ClientSize.Width - 202, 20);
-            header.Resize += (sender, args) =>
-                labelConnectionStatus.Left = header.ClientSize.Width - labelConnectionStatus.Width - 22;
+            header.Controls.AddRange(new Control[] { logo, title, subtitle, labelConnectionStatus, languageButton });
+            header.Resize += (o, e) =>
+            {
+                var scale = header.DeviceDpi / 96f;
+                languageButton.SetBounds(header.Width - (int)(104 * scale), (int)(21 * scale), (int)(80 * scale), (int)(38 * scale));
+                labelConnectionStatus.SetBounds(languageButton.Left - (int)(220 * scale), (int)(25 * scale), (int)(200 * scale), (int)(30 * scale));
+            };
+            languageButton.Click += (o, e) =>
+            {
+                strings.Language = strings.Language == UiLanguage.Vietnamese ? UiLanguage.English : UiLanguage.Vietnamese;
+                if (!preview)
+                {
+                    Properties.Settings.Default.language = strings.Language == UiLanguage.English ? "en" : "vi";
+                    SaveSettings();
+                }
 
-            header.Controls.Add(logo);
-            header.Controls.Add(title);
-            header.Controls.Add(subtitle);
-            header.Controls.Add(labelConnectionStatus);
+                ApplyLanguage();
+            };
             return header;
         }
 
@@ -130,29 +169,20 @@ namespace AsusFanControlGUI
             var sidebar = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 190,
-                BackColor = Color.FromArgb(248, 251, 255),
-                Padding = new Padding(14, 22, 14, 18)
+                Width = 192,
+                BackColor = Color.White,
+                Padding = new Padding(16, 24, 16, 20)
             };
-
-            var navigationLabel = CreateLabel("NAVIGATION / ĐIỀU HƯỚNG", 7.5F, FontStyle.Bold, TextSecondary);
-            navigationLabel.Dock = DockStyle.Top;
-            navigationLabel.Height = 30;
-
-            dashboardNavigationButton = CreateNavigationButton("Fan control / Quạt");
-            settingsNavigationButton = CreateNavigationButton("Settings / Cài đặt");
+            dashboardNavigationButton = CreateNavigationButton("");
+            settingsNavigationButton = CreateNavigationButton("");
+            translations.Add(dashboardNavigationButton, "navControl");
+            translations.Add(settingsNavigationButton, "navSettings");
             dashboardNavigationButton.Dock = DockStyle.Top;
             settingsNavigationButton.Dock = DockStyle.Top;
-
-            var version = CreateLabel("Version 2.1 • EN / VI", 8, FontStyle.Regular, TextSecondary);
+            var version = CreateLabel("SimpleFanControl\nv2.2.0", 9, FontStyle.Regular, TextSecondary);
             version.Dock = DockStyle.Bottom;
-            version.Height = 24;
-            version.TextAlign = ContentAlignment.MiddleCenter;
-
-            sidebar.Controls.Add(version);
-            sidebar.Controls.Add(settingsNavigationButton);
-            sidebar.Controls.Add(dashboardNavigationButton);
-            sidebar.Controls.Add(navigationLabel);
+            version.Height = 48;
+            sidebar.Controls.AddRange(new Control[] { version, settingsNavigationButton, dashboardNavigationButton });
             return sidebar;
         }
 
@@ -161,57 +191,76 @@ namespace AsusFanControlGUI
             var page = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = PageBackground,
-                Padding = new Padding(24)
+                Padding = new Padding(28, 24, 24, 20),
+                BackColor = PageBackground
             };
-
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = PageBackground,
                 ColumnCount = 1,
-                RowCount = 4,
-                Margin = Padding.Empty,
-                Padding = Padding.Empty
+                RowCount = 3
             };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 136));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 124));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-            var titlePanel = new Panel { Dock = DockStyle.Fill };
-            var title = CreateLabel("Fan control / Điều khiển quạt", 18, FontStyle.Bold, TextPrimary);
-            title.Location = new Point(0, 0);
-            title.AutoSize = true;
-            var subtitle = CreateLabel("Monitor and tune cooling / Theo dõi và tinh chỉnh hệ thống làm mát.", 9, FontStyle.Regular, TextSecondary);
-            subtitle.Location = new Point(2, 31);
-            subtitle.AutoSize = true;
-            titlePanel.Controls.Add(title);
-            titlePanel.Controls.Add(subtitle);
-
+            var heading = new Panel
+            {
+                Dock = DockStyle.Fill
+            };
+            var title = LocalLabel("dashboardTitle", 23, true);
+            var subtitle = LocalLabel("dashboardSubtitle", 9, false, TextSecondary);
+            subtitle.Location = new Point(2, 43);
+            heading.Controls.AddRange(new Control[] { title, subtitle });
             var stats = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
                 RowCount = 1,
-                Padding = new Padding(0, 0, 0, 14)
+                Padding = new Padding(0, 0, 0, 18)
             };
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333F));
-            stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.334F));
-            stats.Controls.Add(CreateStatCard("CPU TEMPERATURE / NHIỆT ĐỘ", "°C", out labelCpuTemperature, 0), 0, 0);
-            stats.Controls.Add(CreateStatCard("FAN SPEED / TỐC ĐỘ QUẠT", "RPM", out labelFanRpm, 8), 1, 0);
-            stats.Controls.Add(CreateStatCard("APPLIED OUTPUT / MỨC ÁP DỤNG", "TARGET", out labelAppliedSpeed, 8), 2, 0);
-
-            var controlCard = BuildControlCard();
-            var curveCard = BuildCurveCard();
-
-            layout.Controls.Add(titlePanel, 0, 0);
+            for (int i = 0; i < 3; i++)
+                stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
+            stats.Controls.Add(Stat("cpuTemperature", "°C", out labelCpuTemperature), 0, 0);
+            stats.Controls.Add(Stat("fanSpeed", "RPM", out labelFanRpm), 1, 0);
+            stats.Controls.Add(Stat("appliedOutput", "", out labelAppliedSpeed), 2, 0);
+            labelAppliedSpeed.Font = new Font("Segoe UI", 21, FontStyle.Bold);
+            labelFanRpm.Font = new Font("Segoe UI", 21, FontStyle.Bold);
+            var work = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1
+            };
+            work.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 270));
+            work.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            work.Controls.Add(BuildControlCard(), 0, 0);
+            work.Controls.Add(BuildCurveCard(), 1, 0);
+            layout.Controls.Add(heading, 0, 0);
             layout.Controls.Add(stats, 0, 1);
-            layout.Controls.Add(controlCard, 0, 2);
-            layout.Controls.Add(curveCard, 0, 3);
+            layout.Controls.Add(work, 0, 2);
             page.Controls.Add(layout);
             return page;
+        }
+
+        private ModernCard Stat(string key, string unit, out Label value)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0, 0, 10, 0),
+                Padding = new Padding(20, 15, 20, 10)
+            };
+            var title = LocalLabel(key, 9, false, TextSecondary);
+            title.Dock = DockStyle.Top;
+            value = CreateLabel("—", 27, FontStyle.Bold, DarkBlue);
+            value.Dock = DockStyle.Fill;
+            value.TextAlign = ContentAlignment.MiddleLeft;
+            var units = CreateLabel(unit, 9, FontStyle.Bold, TextSecondary);
+            units.Dock = DockStyle.Right;
+            units.Width = 50;
+            units.TextAlign = ContentAlignment.MiddleRight;
+            card.Controls.AddRange(new Control[] { value, units, title });
+            return card;
         }
 
         private Control BuildControlCard()
@@ -219,52 +268,78 @@ namespace AsusFanControlGUI
             var card = new ModernCard
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(0, 0, 0, 14)
+                Margin = new Padding(0, 0, 14, 0),
+                Padding = new Padding(20),
+                AutoScroll = true
             };
+            var stack = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 410,
+                ColumnCount = 1,
+                RowCount = 8
+            };
+            foreach (var height in new[]
+            {
+                48,
+                66,
+                54,
+                40,
+                66,
+                40,
+                50
+            }
 
-            var masterTitle = CreateLabel("Fan control / Điều khiển quạt", 11, FontStyle.Bold, TextPrimary);
-            masterTitle.Location = new Point(18, 15);
-            masterTitle.AutoSize = true;
-            var masterSubtitle = CreateLabel("Enable manual or curve mode / Bật chế độ thủ công hoặc biểu đồ.", 8, FontStyle.Regular, TextSecondary);
-            masterSubtitle.Location = new Point(19, 38);
-            masterSubtitle.AutoSize = true;
+            )
+                stack.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            stack.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var top = new Panel
+            {
+                Dock = DockStyle.Fill
+            };
+            var title = LocalLabel("coolingControl", 10, true);
+            title.AutoSize = false;
+            title.Dock = DockStyle.Fill;
+            title.TextAlign = ContentAlignment.MiddleLeft;
             toggleFanControl = new ToggleSwitch
             {
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                Location = new Point(card.Width - 64, 18)
+                Dock = DockStyle.Right
             };
-            card.Resize += (sender, args) => toggleFanControl.Left = card.ClientSize.Width - 64;
-
-            var modeLabel = CreateLabel("Fan curve / Biểu đồ", 9, FontStyle.Bold, TextPrimary);
-            modeLabel.Location = new Point(19, 76);
-            modeLabel.AutoSize = true;
-            toggleFanCurve = new ToggleSwitch { Location = new Point(158, 72) };
-
+            top.Controls.AddRange(new Control[] { title, toggleFanControl });
+            var hint = LocalLabel("coolingControlDescription", 9, false, TextSecondary);
+            hint.AutoSize = false;
+            hint.Dock = DockStyle.Fill;
+            modeSelector = new ModeSelector
+            {
+                Dock = DockStyle.Top,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold)
+            };
+            var speedTitle = LocalLabel("manualTitle", 10, true);
+            speedTitle.Dock = DockStyle.Bottom;
+            var description = LocalLabel("manualDescription", 9, false, TextSecondary);
+            description.AutoSize = false;
+            description.Dock = DockStyle.Fill;
+            modeTitle = speedTitle;
+            modeDescription = description;
             manualSpeedSlider = new ModernSlider
             {
-                Location = new Point(230, 68),
-                Size = new Size(390, 34),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Dock = DockStyle.Fill
             };
-            labelManualSpeed = CreateLabel("90%", 11, FontStyle.Bold, Blue);
-            labelManualSpeed.AutoSize = false;
-            labelManualSpeed.Size = new Size(60, 32);
-            labelManualSpeed.Location = new Point(635, 69);
-            labelManualSpeed.TextAlign = ContentAlignment.MiddleRight;
-            labelManualSpeed.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            card.Resize += (sender, args) =>
-            {
-                manualSpeedSlider.Width = Math.Max(160, card.ClientSize.Width - 330);
-                labelManualSpeed.Left = card.ClientSize.Width - 78;
-            };
-
-            card.Controls.Add(masterTitle);
-            card.Controls.Add(masterSubtitle);
-            card.Controls.Add(toggleFanControl);
-            card.Controls.Add(modeLabel);
-            card.Controls.Add(toggleFanCurve);
-            card.Controls.Add(manualSpeedSlider);
-            card.Controls.Add(labelManualSpeed);
+            labelManualSpeed = CreateLabel("90%", 24, FontStyle.Bold, Blue);
+            labelManualSpeed.Dock = DockStyle.Fill;
+            var note = LocalLabel("firmwareActive", 9, false, TextSecondary);
+            note.AutoSize = false;
+            note.Dock = DockStyle.Fill;
+            controlNote = note;
+            stack.Controls.Add(top, 0, 0);
+            stack.Controls.Add(hint, 0, 1);
+            stack.Controls.Add(modeSelector, 0, 2);
+            stack.Controls.Add(speedTitle, 0, 3);
+            stack.Controls.Add(description, 0, 4);
+            stack.Controls.Add(manualSpeedSlider, 0, 5);
+            stack.Controls.Add(labelManualSpeed, 0, 6);
+            stack.Controls.Add(note, 0, 7);
+            card.Controls.Add(stack);
             return card;
         }
 
@@ -273,51 +348,46 @@ namespace AsusFanControlGUI
             var card = new ModernCard
             {
                 Dock = DockStyle.Fill,
-                MinimumSize = new Size(500, 280)
+                Padding = new Padding(20, 18, 20, 16)
             };
-
-            var title = CreateLabel("CPU temperature fan curve / Biểu đồ nhiệt độ CPU", 11, FontStyle.Bold, TextPrimary);
-            title.Location = new Point(18, 14);
-            title.AutoSize = true;
-            var subtitle = CreateLabel("Drag blue points; orange line = current CPU temp / Kéo điểm xanh; vạch cam = nhiệt độ hiện tại.", 8, FontStyle.Regular, TextSecondary);
-            subtitle.Location = new Point(19, 37);
-            subtitle.AutoSize = true;
-            var resetButton = CreateButton("Reset / Đặt lại", false);
-            resetButton.Size = new Size(108, 32);
-            resetButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            resetButton.Location = new Point(card.Width - 126, 15);
-
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 4
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            var head = new Panel
+            {
+                Dock = DockStyle.Fill
+            };
+            var title = LocalLabel("curveTitle", 11, true);
+            title.AutoSize = false;
+            title.Dock = DockStyle.Fill;
+            var reset = LocalButton("resetCurve");
+            reset.Dock = DockStyle.Right;
+            reset.Width = 80;
+            reset.Click += ResetFanCurve_Click;
+            head.Controls.AddRange(new Control[] { title, reset });
+            var hint = LocalLabel("curveSubtitle", 9, false, TextSecondary);
+            hint.AutoSize = false;
+            hint.Dock = DockStyle.Fill;
             fanCurveControl = new FanCurveControl
             {
-                Location = new Point(16, 66),
-                Size = new Size(500, 220),
-                Curve = FanCurve.Parse(Properties.Settings.Default.fanCurve)
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty
             };
-            labelCurveStatus = CreateLabel("Waiting for data / Đang chờ dữ liệu nhiệt độ.", 8, FontStyle.Regular, TextSecondary);
-            labelCurveStatus.AutoSize = false;
-            labelCurveStatus.Location = new Point(19, card.Height - 34);
-            labelCurveStatus.Size = new Size(card.Width - 38, 20);
-            card.Resize += (sender, args) =>
-            {
-                resetButton.Left = card.ClientSize.Width - 126;
-                fanCurveControl.SetBounds(
-                    16,
-                    66,
-                    Math.Max(300, card.ClientSize.Width - 32),
-                    Math.Max(160, card.ClientSize.Height - 116));
-                labelCurveStatus.SetBounds(
-                    19,
-                    card.ClientSize.Height - 31,
-                    Math.Max(200, card.ClientSize.Width - 38),
-                    20);
-            };
-
-            resetButton.Click += ResetFanCurve_Click;
-            card.Controls.Add(title);
-            card.Controls.Add(subtitle);
-            card.Controls.Add(resetButton);
-            card.Controls.Add(fanCurveControl);
-            card.Controls.Add(labelCurveStatus);
+            labelCurveStatus = CreateLabel("", 9, FontStyle.Regular, TextSecondary);
+            labelCurveStatus.Dock = DockStyle.Fill;
+            labelCurveStatus.TextAlign = ContentAlignment.BottomLeft;
+            layout.Controls.Add(head, 0, 0);
+            layout.Controls.Add(hint, 0, 1);
+            layout.Controls.Add(fanCurveControl, 0, 2);
+            layout.Controls.Add(labelCurveStatus, 0, 3);
+            card.Controls.Add(layout);
             return card;
         }
 
@@ -326,32 +396,31 @@ namespace AsusFanControlGUI
             var page = new Panel
             {
                 Dock = DockStyle.Fill,
+                Padding = new Padding(28, 24, 24, 20),
                 BackColor = PageBackground,
-                Padding = new Padding(24),
                 Visible = false
             };
-
-            var title = CreateLabel("Settings / Cài đặt", 18, FontStyle.Bold, TextPrimary);
+            var title = LocalLabel("settingsTitle", 23, true);
+            title.AutoSize = false;
             title.Dock = DockStyle.Top;
-            title.Height = 34;
-            var subtitle = CreateLabel("Startup, polling, safety and preferences / Khởi động, làm mới, an toàn và tùy chọn.", 9, FontStyle.Regular, TextSecondary);
+            title.Height = 46;
+            var subtitle = LocalLabel("settingsSubtitle", 9, false, TextSecondary);
+            subtitle.AutoSize = false;
             subtitle.Dock = DockStyle.Top;
-            subtitle.Height = 38;
-
-            var settingsList = new FlowLayoutPanel
+            subtitle.Height = 40;
+            var list = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
+                AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                AutoScroll = true,
-                Padding = new Padding(0, 4, 8, 0)
+                Padding = new Padding(0, 0, 12, 0)
             };
-            settingsList.SizeChanged += (sender, args) =>
+            list.SizeChanged += (o, e) =>
             {
-                foreach (Control control in settingsList.Controls)
-                    control.Width = Math.Max(400, settingsList.ClientSize.Width - 25);
+                foreach (Control row in list.Controls)
+                    row.Width = Math.Max(300, list.ClientSize.Width - 32);
             };
-
             toggleStartWithWindows = new ToggleSwitch();
             toggleAutoRefresh = new ToggleSwitch();
             toggleMinimizeToTray = new ToggleSwitch();
@@ -360,72 +429,107 @@ namespace AsusFanControlGUI
             pollingComboBox = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Font = new Font("Segoe UI", 9F),
-                Width = 170
+                Width = 135,
+                Font = new Font("Segoe UI", 10)
             };
-            pollingComboBox.Items.AddRange(new object[]
+            AddSetting(list, "startWindows", "startWindowsDescription", toggleStartWithWindows);
+            AddSetting(list, "polling", "pollingDescription", pollingComboBox);
+            AddSetting(list, "autoRefresh", "autoRefreshDescription", toggleAutoRefresh);
+            AddSetting(list, "minimizeTray", "minimizeTrayDescription", toggleMinimizeToTray);
+            AddSetting(list, "resetOnExit", "resetOnExitDescription", toggleTurnOffOnExit);
+            AddSetting(list, "safeLimits", "safeLimitsDescription", toggleSafeSettings);
+            var actions = new FlowLayoutPanel
             {
-                new PollingOption("1 second / 1 giây", 1000),
-                new PollingOption("2 seconds / 2 giây", 2000),
-                new PollingOption("3 seconds / 3 giây", 3000),
-                new PollingOption("5 seconds / 5 giây", 5000),
-                new PollingOption("10 seconds / 10 giây", 10000)
-            });
-
-            settingsList.Controls.Add(CreateSettingRow(
-                "Start with Windows / Khởi động cùng Windows",
-                "Launch after sign-in using Scheduled Task / Tự chạy sau khi đăng nhập bằng Scheduled Task.",
-                toggleStartWithWindows));
-            settingsList.Controls.Add(CreateSettingRow(
-                "Polling interval / Chu kỳ cập nhật",
-                "Refresh temperature and RPM / Cập nhật nhiệt độ và RPM. Mặc định: 2 giây.",
-                pollingComboBox));
-            settingsList.Controls.Add(CreateSettingRow(
-                "Auto-refresh statistics / Tự làm mới thống kê",
-                "Continuously update dashboard data / Liên tục cập nhật dữ liệu trên Dashboard.",
-                toggleAutoRefresh));
-            settingsList.Controls.Add(CreateSettingRow(
-                "Minimize to system tray / Thu nhỏ xuống khay",
-                "Close keeps the app running in tray / Bấm X vẫn giữ ứng dụng chạy dưới system tray.",
-                toggleMinimizeToTray));
-            settingsList.Controls.Add(CreateSettingRow(
-                "Reset fan control on exit / Reset quạt khi thoát",
-                "Return fans to ASUS firmware / Trả quyền điều khiển quạt về firmware ASUS.",
-                toggleTurnOffOnExit));
-            settingsList.Controls.Add(CreateSettingRow(
-                "Safe output limits / Giới hạn an toàn",
-                "Limit commands to 40–99% / Giới hạn lệnh điều khiển trong khoảng 40–99%.",
-                toggleSafeSettings));
-
-            var actions = new ModernCard { Height = 82, Width = 700 };
-            var refreshButton = CreateButton("Refresh / Làm mới", true);
-            refreshButton.Location = new Point(18, 22);
-            refreshButton.Size = new Size(118, 38);
-            refreshButton.Click += (sender, args) => RefreshAll(true);
-            var projectButton = CreateButton("Project / Dự án", false);
-            projectButton.Location = new Point(146, 22);
-            projectButton.Size = new Size(118, 38);
-            projectButton.Click += (sender, args) =>
-                Process.Start("https://github.com/Karmel0x/AsusFanControl");
-            var exitButton = CreateButton("Exit / Thoát", false);
-            exitButton.Size = new Size(132, 38);
-            exitButton.Location = new Point(actions.Width - 150, 22);
-            exitButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            exitButton.Click += (sender, args) => ExitApplication();
-            actions.Controls.Add(refreshButton);
-            actions.Controls.Add(projectButton);
-            actions.Controls.Add(exitButton);
-            settingsList.Controls.Add(actions);
-
-            labelSettingsStatus = CreateLabel(string.Empty, 8, FontStyle.Regular, TextSecondary);
+                Height = 48,
+                Width = 650
+            };
+            var refresh = LocalButton("refreshNow", true);
+            refresh.Size = new Size(155, 38);
+            refresh.Click += (o, e) => RefreshAll(true);
+            var exit = LocalButton("exit");
+            exit.Size = new Size(155, 38);
+            exit.Click += (o, e) => ExitApplication();
+            actions.Controls.AddRange(new Control[] { refresh, exit });
+            list.Controls.Add(actions);
+            labelSettingsStatus = CreateLabel("", 9, FontStyle.Regular, TextSecondary);
             labelSettingsStatus.Dock = DockStyle.Bottom;
-            labelSettingsStatus.Height = 26;
-
-            page.Controls.Add(settingsList);
-            page.Controls.Add(labelSettingsStatus);
-            page.Controls.Add(subtitle);
-            page.Controls.Add(title);
+            labelSettingsStatus.Height = 28;
+            page.Controls.AddRange(new Control[] { list, labelSettingsStatus, subtitle, title });
             return page;
+        }
+
+        private void AddSetting(FlowLayoutPanel list, string title, string hint, Control action)
+        {
+            var row = new ModernCard
+            {
+                Width = 750,
+                Height = 86,
+                Margin = new Padding(0, 0, 0, 10),
+                Padding = new Padding(20, 13, 20, 12)
+            };
+            var actionHost = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = action.Width + 18
+            };
+            action.Location = new Point(10, 12);
+            actionHost.Controls.Add(action);
+            var copy = new Panel
+            {
+                Dock = DockStyle.Fill
+            };
+            var name = LocalLabel(title, 10, true);
+            name.AutoSize = false;
+            name.Dock = DockStyle.Top;
+            name.Height = 26;
+            var description = LocalLabel(hint, 9, false, TextSecondary);
+            description.AutoSize = false;
+            description.Dock = DockStyle.Fill;
+            copy.Controls.AddRange(new Control[] { description, name });
+            row.Controls.AddRange(new Control[] { copy, actionHost });
+            list.Controls.Add(row);
+        }
+
+        private void ApplyLanguage()
+        {
+            foreach (var pair in translations)
+                pair.Key.Text = strings[pair.Value];
+            languageButton.Language = strings.Language;
+            languageButton.AccessibleName = strings.Language == UiLanguage.Vietnamese ? "Switch to English" : "Chuyển sang tiếng Việt";
+            modeSelector.ManualText = strings["manual"];
+            modeSelector.CurveText = strings["curve"];
+            modeSelector.Invalidate();
+            fanCurveControl.TemperatureAxisTitle = strings["temperatureAxis"];
+            fanCurveControl.SpeedAxisTitle = strings["speedAxis"];
+            fanCurveControl.Invalidate();
+            var wasInitializing = initializing;
+            initializing = true;
+            var milliseconds = (pollingComboBox.SelectedItem as PollingOption)?.Milliseconds ?? Properties.Settings.Default.pollingIntervalMs;
+            pollingComboBox.Items.Clear();
+            foreach (var interval in new[]
+            {
+                1000,
+                2000,
+                3000,
+                5000,
+                10000
+            }
+
+            )
+                pollingComboBox.Items.Add(new PollingOption(strings.Format("seconds", interval / 1000), interval));
+            pollingComboBox.SelectedItem = pollingComboBox.Items.Cast<PollingOption>().OrderBy(p => Math.Abs(p.Milliseconds - milliseconds)).First();
+            initializing = wasInitializing;
+            SetConnectionStatus(connectionKey, connectionKey == "unavailable");
+            labelCurveStatus.Text = strings[toggleFanControl.Checked ? (modeSelector.CurveSelected ? "curveActive" : "manualActive") : "firmwareActive"];
+            if (fanSpeed <= 0)
+                labelAppliedSpeed.Text = strings["auto"];
+            if (trayIcon != null)
+            {
+                trayIcon.ContextMenu.MenuItems[0].Text = strings["open"];
+                trayIcon.ContextMenu.MenuItems[1].Text = strings["exit"];
+            }
+
+            UpdateControlMode();
         }
 
         private void LoadSettingsIntoInterface()
@@ -433,22 +537,18 @@ namespace AsusFanControlGUI
             var settings = Properties.Settings.Default;
             manualSpeedSlider.Value = Math.Max(0, Math.Min(100, settings.fanSpeed));
             labelManualSpeed.Text = manualSpeedSlider.Value + "%";
-            toggleFanCurve.Checked = settings.fanCurveEnabled;
+            modeSelector.CurveSelected = settings.fanCurveEnabled;
             toggleAutoRefresh.Checked = settings.autoRefreshStats;
             toggleMinimizeToTray.Checked = settings.minimizeToTrayOnClose;
             toggleTurnOffOnExit.Checked = settings.turnOffControlOnExit;
             toggleSafeSettings.Checked = settings.forbidUnsafeSettings;
             fanCurveControl.Curve = FanCurve.Parse(settings.fanCurve);
-
+            ApplyLanguage();
             var polling = Math.Max(1000, Math.Min(10000, settings.pollingIntervalMs));
-            pollingComboBox.SelectedItem = pollingComboBox.Items
-                .Cast<PollingOption>()
-                .OrderBy(option => Math.Abs(option.Milliseconds - polling))
-                .First();
-
+            pollingComboBox.SelectedItem = pollingComboBox.Items.Cast<PollingOption>().OrderBy(option => Math.Abs(option.Milliseconds - polling)).First();
             try
             {
-                toggleStartWithWindows.Checked = StartupTaskManager.IsEnabled();
+                toggleStartWithWindows.Checked = !preview && StartupTaskManager.IsEnabled();
             }
             catch
             {
@@ -463,9 +563,8 @@ namespace AsusFanControlGUI
             dashboardNavigationButton.Click += (sender, args) => ShowPage(dashboardPage);
             settingsNavigationButton.Click += (sender, args) => ShowPage(settingsPage);
             toggleFanControl.CheckedChanged += ToggleFanControl_CheckedChanged;
-            toggleFanCurve.CheckedChanged += ToggleFanCurve_CheckedChanged;
-            manualSpeedSlider.ValueChanged += (sender, args) =>
-                labelManualSpeed.Text = manualSpeedSlider.Value + "%";
+            modeSelector.SelectionChanged += ToggleFanCurve_CheckedChanged;
+            manualSpeedSlider.ValueChanged += (sender, args) => labelManualSpeed.Text = manualSpeedSlider.Value + "%";
             manualSpeedSlider.ValueCommitted += ManualSpeedSlider_ValueCommitted;
             fanCurveControl.CurveChanged += FanCurveControl_CurveChanged;
             toggleStartWithWindows.CheckedChanged += ToggleStartWithWindows_CheckedChanged;
@@ -478,23 +577,42 @@ namespace AsusFanControlGUI
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            if (Environment.GetEnvironmentVariable("SIMPLEFANCONTROL_UI_PREVIEW") == "1")
+            if (preview)
+            {
+                labelCpuTemperature.Text = "61";
+                labelFanRpm.Text = "2400";
+                fanCurveControl.CurrentTemperature = 61;
+                SetConnectionStatus("firmware", false);
                 return;
+            }
 
             try
             {
                 asusControl = new AsusControl();
                 ApplyFanSpeed(0);
-                SetConnectionStatus("Firmware / Tự động", false);
-                labelCurveStatus.Text = "Firmware fan control active / Firmware đang điều khiển quạt.";
+                SetConnectionStatus("firmware", false);
+                labelCurveStatus.Text = strings["firmwareActive"];
                 RefreshAll(true);
             }
             catch (Exception exception)
             {
-                SetConnectionStatus("Hardware unavailable / Không khả dụng", true);
+                SetConnectionStatus("unavailable", true);
                 labelCurveStatus.Text = exception.Message;
             }
 
+            // Upgrade an already-enabled legacy batch task to the direct EXE launch.
+            if (toggleStartWithWindows.Checked)
+            {
+                try
+                {
+                    if (!StartupTaskManager.IsCurrentConfiguration())
+                        StartupTaskManager.SetEnabled(true);
+                }
+                catch (Exception exception)
+                {
+                    labelSettingsStatus.Text = strings.Format("startupFailed", exception.Message);
+                }
+            }
             RestartTimer();
         }
 
@@ -508,37 +626,37 @@ namespace AsusFanControlGUI
         {
             if (initializing)
                 return;
-
+            UpdateControlMode();
             if (!toggleFanControl.Checked)
             {
                 ApplyFanSpeed(0);
-                SetConnectionStatus("Firmware / Tự động", false);
+                SetConnectionStatus("firmware", false);
             }
-            else if (toggleFanCurve.Checked)
+            else if (modeSelector.CurveSelected)
             {
                 RefreshCpuTemperature(true);
-                SetConnectionStatus("Curve active / Đang chạy biểu đồ", false);
+                SetConnectionStatus("curveActive", false);
             }
             else
             {
                 ApplyManualSpeed();
-                SetConnectionStatus("Manual / Thủ công", false);
+                SetConnectionStatus("manualActive", false);
             }
         }
 
         private void ToggleFanCurve_CheckedChanged(object sender, EventArgs e)
         {
-            Properties.Settings.Default.fanCurveEnabled = toggleFanCurve.Checked;
+            Properties.Settings.Default.fanCurveEnabled = modeSelector.CurveSelected;
             SaveSettings();
             UpdateControlMode();
             RestartTimer();
-
             if (toggleFanControl.Checked)
             {
-                if (toggleFanCurve.Checked)
+                if (modeSelector.CurveSelected)
                     RefreshCpuTemperature(true);
                 else
                     ApplyManualSpeed();
+                SetConnectionStatus(modeSelector.CurveSelected ? "curveActive" : "manualActive", false);
             }
         }
 
@@ -548,8 +666,7 @@ namespace AsusFanControlGUI
             manualSpeedSlider.Value = value;
             Properties.Settings.Default.fanSpeed = value;
             SaveSettings();
-
-            if (toggleFanControl.Checked && !toggleFanCurve.Checked)
+            if (toggleFanControl.Checked && !modeSelector.CurveSelected)
                 ApplyFanSpeed(value);
         }
 
@@ -557,8 +674,7 @@ namespace AsusFanControlGUI
         {
             Properties.Settings.Default.fanCurve = fanCurveControl.Curve.ToString();
             SaveSettings();
-
-            if (toggleFanControl.Checked && toggleFanCurve.Checked)
+            if (toggleFanControl.Checked && modeSelector.CurveSelected)
                 RefreshCpuTemperature(true);
         }
 
@@ -566,29 +682,28 @@ namespace AsusFanControlGUI
         {
             fanCurveControl.Curve = FanCurve.CreateDefault();
             FanCurveControl_CurveChanged(sender, e);
-            labelCurveStatus.Text = "Default curve restored / Đã khôi phục biểu đồ mặc định.";
+            labelCurveStatus.Text = strings["defaultCurveRestored"];
         }
 
         private void ToggleStartWithWindows_CheckedChanged(object sender, EventArgs e)
         {
             if (initializing)
                 return;
-
             try
             {
+                if (preview)
+                    return;
                 StartupTaskManager.SetEnabled(toggleStartWithWindows.Checked);
                 Properties.Settings.Default.startWithWindows = toggleStartWithWindows.Checked;
                 SaveSettings();
-                labelSettingsStatus.Text = toggleStartWithWindows.Checked
-                    ? "Startup task installed / Đã bật khởi động cùng Windows."
-                    : "Startup task removed / Đã tắt khởi động cùng Windows.";
+                labelSettingsStatus.Text = toggleStartWithWindows.Checked ? strings["startupInstalled"] : strings["startupRemoved"];
             }
             catch (Exception exception)
             {
                 initializing = true;
                 toggleStartWithWindows.Checked = !toggleStartWithWindows.Checked;
                 initializing = false;
-                labelSettingsStatus.Text = "Startup setting failed / Cài đặt khởi động thất bại: " + exception.Message;
+                labelSettingsStatus.Text = strings.Format("startupFailed", exception.Message);
             }
         }
 
@@ -623,10 +738,9 @@ namespace AsusFanControlGUI
                 return;
             Properties.Settings.Default.forbidUnsafeSettings = toggleSafeSettings.Checked;
             SaveSettings();
-
             if (toggleFanControl.Checked)
             {
-                if (toggleFanCurve.Checked)
+                if (modeSelector.CurveSelected)
                     RefreshCpuTemperature(true);
                 else
                     ApplyManualSpeed();
@@ -637,10 +751,9 @@ namespace AsusFanControlGUI
         {
             if (initializing || !(pollingComboBox.SelectedItem is PollingOption option))
                 return;
-
             Properties.Settings.Default.pollingIntervalMs = option.Milliseconds;
             SaveSettings();
-            labelSettingsStatus.Text = "Polling updated / Đã đổi chu kỳ: " + option + ".";
+            labelSettingsStatus.Text = strings.Format("pollingUpdated", option);
             RestartTimer();
         }
 
@@ -649,13 +762,14 @@ namespace AsusFanControlGUI
             timer?.Stop();
             timer?.Dispose();
             timer = null;
-
-            if (!toggleAutoRefresh.Checked && !toggleFanCurve.Checked)
+            if (!toggleAutoRefresh.Checked && !modeSelector.CurveSelected)
                 return;
-
             var interval = Properties.Settings.Default.pollingIntervalMs;
             interval = Math.Max(1000, Math.Min(10000, interval));
-            timer = new Timer { Interval = interval };
+            timer = new Timer
+            {
+                Interval = interval
+            };
             timer.Tick += (sender, args) => RefreshAll(false);
             timer.Start();
         }
@@ -664,14 +778,12 @@ namespace AsusFanControlGUI
         {
             if (refreshing || asusControl == null)
                 return;
-
             refreshing = true;
             try
             {
                 if (forceStats || toggleAutoRefresh.Checked)
                     RefreshFanSpeeds();
-
-                if (forceStats || toggleAutoRefresh.Checked || toggleFanCurve.Checked)
+                if (forceStats || toggleAutoRefresh.Checked || modeSelector.CurveSelected)
                     RefreshCpuTemperature(true);
             }
             finally
@@ -685,9 +797,7 @@ namespace AsusFanControlGUI
             try
             {
                 var speeds = asusControl.GetFanSpeeds();
-                labelFanRpm.Text = speeds.Count == 0
-                    ? "—"
-                    : string.Join(" / ", speeds);
+                labelFanRpm.Text = speeds.Count == 0 ? "—" : string.Join(" / ", speeds);
             }
             catch (Exception exception)
             {
@@ -703,22 +813,17 @@ namespace AsusFanControlGUI
                 var temperature = asusControl.Thermal_Read_Cpu_Temperature();
                 labelCpuTemperature.Text = temperature.ToString();
                 fanCurveControl.CurrentTemperature = temperature;
-
-                if (!applyCurve || !toggleFanCurve.Checked)
+                if (!applyCurve || !modeSelector.CurveSelected)
                     return;
-
-                var requestedSpeed = ApplySafetyLimits(
-                    fanCurveControl.Curve.GetFanSpeed(temperature));
-                labelCurveStatus.Text = string.Format(
-                    "CPU {0}°C  →  target / mục tiêu {1}%", temperature, requestedSpeed);
-
+                var requestedSpeed = ApplySafetyLimits(fanCurveControl.Curve.GetFanSpeed(temperature));
+                labelCurveStatus.Text = string.Format(strings["curveTarget"], temperature, requestedSpeed);
                 if (toggleFanControl.Checked)
                     ApplyFanSpeed(requestedSpeed);
             }
             catch (Exception exception)
             {
                 labelCpuTemperature.Text = "—";
-                labelCurveStatus.Text = "Temperature unavailable / Không đọc được nhiệt độ: " + exception.Message;
+                labelCurveStatus.Text = strings.Format("temperatureUnavailable", exception.Message);
             }
         }
 
@@ -733,26 +838,27 @@ namespace AsusFanControlGUI
         {
             if (!toggleSafeSettings.Checked || value == 0)
                 return Math.Max(0, Math.Min(100, value));
-
             return Math.Max(40, Math.Min(99, value));
         }
 
         private void ApplyFanSpeed(int value)
         {
-            labelAppliedSpeed.Text = value == 0 ? "AUTO" : value + "%";
+            labelAppliedSpeed.Text = value == 0 ? strings["auto"] : value + "%";
             if (fanSpeed == value || asusControl == null)
                 return;
-
             fanSpeed = value;
             asusControl.SetFanSpeeds(value);
         }
 
         private void UpdateControlMode()
         {
-            manualSpeedSlider.Enabled = !toggleFanCurve.Checked;
-            manualSpeedSlider.Cursor = manualSpeedSlider.Enabled
-                ? Cursors.Hand
-                : Cursors.Default;
+            modeTitle.Text = strings[modeSelector.CurveSelected ? "curveModeTitle" : "manualTitle"];
+            modeDescription.Text = strings[modeSelector.CurveSelected ? "curveModeDescription" : "manualDescription"];
+            controlNote.Text = strings[toggleFanControl.Checked ? (modeSelector.CurveSelected ? "curveActive" : "manualActive") : "firmwareActive"];
+            manualSpeedSlider.Visible = !modeSelector.CurveSelected;
+            labelManualSpeed.Visible = !modeSelector.CurveSelected;
+            manualSpeedSlider.Enabled = !modeSelector.CurveSelected;
+            manualSpeedSlider.Cursor = manualSpeedSlider.Enabled ? Cursors.Hand : Cursors.Default;
             manualSpeedSlider.Invalidate();
         }
 
@@ -761,32 +867,25 @@ namespace AsusFanControlGUI
             dashboardPage.Visible = page == dashboardPage;
             settingsPage.Visible = page == settingsPage;
             page.BringToFront();
-
             StyleNavigationButton(dashboardNavigationButton, page == dashboardPage);
             StyleNavigationButton(settingsNavigationButton, page == settingsPage);
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (exitRequested || !toggleMinimizeToTray.Checked)
+            if (exitRequested || e.CloseReason != CloseReason.UserClosing || !toggleMinimizeToTray.Checked)
                 return;
-
             e.Cancel = true;
             Hide();
             EnsureTrayIcon();
             trayIcon.Visible = true;
-            trayIcon.ShowBalloonTip(
-                2500,
-                "SimpleFanControl for Asus",
-                "Still running in system tray / Ứng dụng vẫn chạy dưới khay hệ thống.",
-                ToolTipIcon.Info);
+            trayIcon.ShowBalloonTip(2500, "SimpleFanControl for Asus", strings["trayMessage"], ToolTipIcon.Info);
         }
 
         private void Form1_Resize(object sender, EventArgs e)
         {
             if (WindowState != FormWindowState.Minimized || !toggleMinimizeToTray.Checked)
                 return;
-
             Hide();
             EnsureTrayIcon();
             trayIcon.Visible = true;
@@ -796,16 +895,11 @@ namespace AsusFanControlGUI
         {
             if (trayIcon != null)
                 return;
-
             trayIcon = new NotifyIcon
             {
                 Icon = Icon,
                 Text = "SimpleFanControl for Asus",
-                ContextMenu = new ContextMenu(new[]
-                {
-                    new MenuItem("Open / Mở", (sender, args) => RestoreFromTray()),
-                    new MenuItem("Exit / Thoát", (sender, args) => ExitApplication())
-                })
+                ContextMenu = new ContextMenu(new[] { new MenuItem(strings["open"], (sender, args) => RestoreFromTray()), new MenuItem(strings["exit"], (sender, args) => ExitApplication()) })
             };
             trayIcon.DoubleClick += (sender, args) => RestoreFromTray();
         }
@@ -829,68 +923,16 @@ namespace AsusFanControlGUI
 
         private void SetConnectionStatus(string text, bool error)
         {
-            labelConnectionStatus.Text = text;
-            labelConnectionStatus.ForeColor = error
-                ? Color.FromArgb(180, 45, 55)
-                : DarkBlue;
-            labelConnectionStatus.BackColor = error
-                ? Color.FromArgb(255, 235, 238)
-                : Color.FromArgb(231, 242, 255);
+            connectionKey = text;
+            labelConnectionStatus.Text = strings[text];
+            labelConnectionStatus.ForeColor = error ? Color.FromArgb(180, 45, 55) : DarkBlue;
+            labelConnectionStatus.BackColor = error ? Color.FromArgb(255, 235, 238) : Color.FromArgb(231, 242, 255);
         }
 
         private static void SaveSettings()
         {
-            Properties.Settings.Default.Save();
-        }
-
-        private ModernCard CreateStatCard(
-            string title,
-            string unit,
-            out Label valueLabel,
-            int leftMargin)
-        {
-            var card = new ModernCard
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(leftMargin, 0, 0, 0)
-            };
-            var titleLabel = CreateLabel(title, 8, FontStyle.Bold, TextSecondary);
-            titleLabel.Location = new Point(18, 15);
-            titleLabel.AutoSize = true;
-            valueLabel = CreateLabel("—", 20, FontStyle.Bold, DarkBlue);
-            valueLabel.Location = new Point(18, 39);
-            valueLabel.AutoSize = true;
-            var unitLabel = CreateLabel(unit, 8, FontStyle.Bold, TextSecondary);
-            unitLabel.AutoSize = false;
-            unitLabel.Size = new Size(62, 20);
-            unitLabel.TextAlign = ContentAlignment.MiddleRight;
-            unitLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            unitLabel.Location = new Point(card.Width - 80, 48);
-            card.Resize += (sender, args) =>
-                unitLabel.Left = card.ClientSize.Width - unitLabel.Width - 18;
-            card.Controls.Add(titleLabel);
-            card.Controls.Add(valueLabel);
-            card.Controls.Add(unitLabel);
-            return card;
-        }
-
-        private ModernCard CreateSettingRow(string title, string description, Control action)
-        {
-            var row = new ModernCard { Height = 74, Width = 700 };
-            var titleLabel = CreateLabel(title, 10, FontStyle.Bold, TextPrimary);
-            titleLabel.Location = new Point(18, 14);
-            titleLabel.AutoSize = true;
-            var descriptionLabel = CreateLabel(description, 8, FontStyle.Regular, TextSecondary);
-            descriptionLabel.Location = new Point(19, 39);
-            descriptionLabel.AutoSize = true;
-            action.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            action.Location = new Point(row.Width - action.Width - 20, (row.Height - action.Height) / 2);
-            row.Resize += (sender, args) =>
-                action.Left = row.ClientSize.Width - action.Width - 20;
-            row.Controls.Add(titleLabel);
-            row.Controls.Add(descriptionLabel);
-            row.Controls.Add(action);
-            return row;
+            if (Environment.GetEnvironmentVariable("SIMPLEFANCONTROL_UI_PREVIEW") != "1")
+                Properties.Settings.Default.Save();
         }
 
         private Button CreateNavigationButton(string text)
@@ -900,7 +942,10 @@ namespace AsusFanControlGUI
                 Text = text,
                 Height = 46,
                 FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
+                FlatAppearance =
+                {
+                    BorderSize = 0
+                },
                 TextAlign = ContentAlignment.MiddleLeft,
                 Padding = new Padding(14, 0, 0, 0),
                 Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
@@ -932,11 +977,7 @@ namespace AsusFanControlGUI
             return button;
         }
 
-        private static Label CreateLabel(
-            string text,
-            float size,
-            FontStyle style,
-            Color color)
+        private static Label CreateLabel(string text, float size, FontStyle style, Color color)
         {
             return new Label
             {

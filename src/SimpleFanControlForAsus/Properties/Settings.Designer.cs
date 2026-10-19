@@ -16,6 +16,12 @@ namespace AsusFanControlGUI.Properties {
     internal sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("vi")]
+        public string language {
+            get { return (string)this["language"]; }
+            set { this["language"] = value; }
+        }
         
         public static Settings Default {
             get {

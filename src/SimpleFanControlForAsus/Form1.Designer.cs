@@ -23,10 +23,10 @@ namespace AsusFanControlGUI
             AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             BackColor = System.Drawing.Color.FromArgb(245, 248, 252);
-            ClientSize = new System.Drawing.Size(1040, 700);
+            ClientSize = new System.Drawing.Size(1180, 780);
             Font = new System.Drawing.Font("Segoe UI", 9F);
             Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-            MinimumSize = new System.Drawing.Size(940, 650);
+            MinimumSize = new System.Drawing.Size(1000, 700);
             Name = "Form1";
             StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             Text = "SimpleFanControl for Asus";

@@ -9,30 +9,27 @@ namespace AsusFanControlGUI
     {
         private const int MinimumTemperature = 30;
         private const int MaximumTemperature = 100;
-        private const int MarginLeft = 42;
-        private const int MarginTop = 14;
-        private const int MarginRight = 16;
-        private const int MarginBottom = 32;
-        private const int PointRadius = 8;
         private const int PointHitRadius = 22;
-
         private FanCurve curve = FanCurve.CreateDefault();
         private int draggedPointIndex = -1;
         private double? currentTemperature;
-
         public FanCurveControl()
         {
             DoubleBuffered = true;
             BackColor = Color.White;
             Cursor = Cursors.Default;
-            MinimumSize = new Size(300, 180);
+            MinimumSize = new Size(280, 180);
+            SetStyle(ControlStyles.ResizeRedraw, true);
         }
 
         public event EventHandler CurveChanged;
-
         public FanCurve Curve
         {
-            get { return curve; }
+            get
+            {
+                return curve;
+            }
+
             set
             {
                 curve = value ?? FanCurve.CreateDefault();
@@ -42,7 +39,11 @@ namespace AsusFanControlGUI
 
         public double? CurrentTemperature
         {
-            get { return currentTemperature; }
+            get
+            {
+                return currentTemperature;
+            }
+
             set
             {
                 currentTemperature = value;
@@ -50,88 +51,97 @@ namespace AsusFanControlGUI
             }
         }
 
+        public string TemperatureAxisTitle { get; set; } = "CPU temperature (°C)";
+        public string SpeedAxisTitle { get; set; } = "Fan speed (%)";
+
+        private int Scale(int value)
+        {
+            return Math.Max(1, (int)Math.Round(value * DeviceDpi / 96f));
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-
-            var graphics = e.Graphics;
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var g = e.Graphics;
+            DrawingHelper.Configure(g);
             var plot = GetPlotRectangle();
-
-            using (var gridPen = new Pen(Color.FromArgb(225, 230, 235)))
-            using (var textBrush = new SolidBrush(Color.FromArgb(80, 85, 90)))
+            var flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter;
+            using (var grid = new Pen(UiPalette.Border))
             {
-                for (var speed = 0; speed <= 100; speed += 20)
+                for (int speed = 0; speed <= 100; speed += 20)
                 {
-                    var y = SpeedToY(speed, plot);
-                    graphics.DrawLine(gridPen, plot.Left, y, plot.Right, y);
-                    var label = speed + "%";
-                    var size = graphics.MeasureString(label, Font);
-                    graphics.DrawString(label, Font, textBrush,
-                        plot.Left - size.Width - 5, y - size.Height / 2);
+                    int y = (int)SpeedToY(speed, plot);
+                    g.DrawLine(grid, plot.Left, y, plot.Right, y);
+                    TextRenderer.DrawText(g, speed + "%", Font, new Rectangle(0, y - Scale(10), plot.Left - Scale(9), Scale(20)), UiPalette.Muted, flags | TextFormatFlags.Right);
                 }
 
-                for (var temperature = 40; temperature <= 100; temperature += 10)
+                for (int temperature = 30; temperature <= 100; temperature += 10)
                 {
-                    var x = TemperatureToX(temperature, plot);
-                    graphics.DrawLine(gridPen, x, plot.Top, x, plot.Bottom);
-                    var label = temperature + "°";
-                    var size = graphics.MeasureString(label, Font);
-                    graphics.DrawString(label, Font, textBrush,
-                        x - size.Width / 2, plot.Bottom + 6);
+                    int x = (int)TemperatureToX(temperature, plot);
+                    g.DrawLine(grid, x, plot.Top, x, plot.Bottom);
+                    TextRenderer.DrawText(g, temperature + "°", Font, new Rectangle(x - Scale(18), plot.Bottom + Scale(8), Scale(36), Scale(20)), UiPalette.Muted, flags | TextFormatFlags.HorizontalCenter);
                 }
+            }
+
+            TextRenderer.DrawText(g, SpeedAxisTitle, Font, new Rectangle(plot.Left, 0, plot.Width, Scale(24)), UiPalette.Muted, flags);
+            TextRenderer.DrawText(g, TemperatureAxisTitle, Font, new Rectangle(plot.Left, Height - Scale(24), plot.Width, Scale(22)), UiPalette.Muted, flags | TextFormatFlags.HorizontalCenter);
+            var vertices = new PointF[curve.Points.Count];
+            for (int i = 0; i < vertices.Length; i++)
+                vertices[i] = new PointF(TemperatureToX(curve.Points[i].Temperature, plot), SpeedToY(curve.Points[i].FanSpeed, plot));
+            using (var area = new GraphicsPath())
+            using (var fill = new LinearGradientBrush(plot, Color.FromArgb(40, UiPalette.Primary), Color.FromArgb(3, UiPalette.Primary), LinearGradientMode.Vertical))
+            using (var line = new Pen(UiPalette.Primary, Scale(3)))
+            {
+                area.AddLine(plot.Left, vertices[0].Y, vertices[0].X, vertices[0].Y);
+                area.AddLines(vertices);
+                area.AddLine(vertices[vertices.Length - 1], new PointF(plot.Right, vertices[vertices.Length - 1].Y));
+                area.AddLine(plot.Right, vertices[vertices.Length - 1].Y, plot.Right, plot.Bottom);
+                area.AddLine(plot.Right, plot.Bottom, plot.Left, plot.Bottom);
+                area.CloseFigure();
+                g.FillPath(fill, area);
+                g.DrawLines(line, vertices);
+                g.DrawLine(line, new PointF(plot.Left, vertices[0].Y), vertices[0]);
+                g.DrawLine(line, vertices[vertices.Length - 1], new PointF(plot.Right, vertices[vertices.Length - 1].Y));
             }
 
             if (currentTemperature.HasValue)
             {
-                var temperature = Math.Max(MinimumTemperature,
-                    Math.Min(MaximumTemperature, currentTemperature.Value));
-                var x = TemperatureToX(temperature, plot);
-                using (var temperaturePen = new Pen(Color.FromArgb(230, 140, 25), 2))
+                int x = (int)TemperatureToX(Math.Max(30, Math.Min(100, currentTemperature.Value)), plot);
+                using (var marker = new Pen(UiPalette.Orange, Scale(2)))
                 {
-                    temperaturePen.DashStyle = DashStyle.Dash;
-                    graphics.DrawLine(temperaturePen, x, plot.Top, x, plot.Bottom);
+                    marker.DashStyle = DashStyle.Dash;
+                    g.DrawLine(marker, x, plot.Top, x, plot.Bottom);
                 }
+
+                var badge = new Rectangle(Math.Max(plot.Left, Math.Min(plot.Right - Scale(52), x - Scale(26))), plot.Top - Scale(27), Scale(52), Scale(21));
+                using (var shape = DrawingHelper.RoundedRectangle(badge, Scale(5)))
+                using (var fill = new SolidBrush(Color.FromArgb(255, 242, 225)))
+                    g.FillPath(fill, shape);
+                TextRenderer.DrawText(g, currentTemperature.Value.ToString("0") + "°C", Font, badge, Color.FromArgb(167, 87, 17), flags | TextFormatFlags.HorizontalCenter);
             }
 
-            using (var linePen = new Pen(Color.FromArgb(35, 110, 190), 3))
-            using (var pointBrush = new SolidBrush(Color.FromArgb(35, 110, 190)))
-            using (var selectedBrush = new SolidBrush(Color.FromArgb(230, 140, 25)))
-            using (var pointTextBrush = new SolidBrush(Color.FromArgb(45, 50, 55)))
+            for (int i = 0; i < vertices.Length; i++)
             {
-                for (var index = 1; index < curve.Points.Count; index++)
+                var vertex = vertices[i];
+                int radius = Scale(6);
+                using (var fill = new SolidBrush(i == draggedPointIndex ? UiPalette.Orange : UiPalette.Primary))
+                using (var ring = new Pen(Color.White, Scale(2)))
                 {
-                    var previous = curve.Points[index - 1];
-                    var point = curve.Points[index];
-                    graphics.DrawLine(linePen,
-                        TemperatureToX(previous.Temperature, plot),
-                        SpeedToY(previous.FanSpeed, plot),
-                        TemperatureToX(point.Temperature, plot),
-                        SpeedToY(point.FanSpeed, plot));
+                    g.FillEllipse(fill, vertex.X - radius, vertex.Y - radius, radius * 2, radius * 2);
+                    g.DrawEllipse(ring, vertex.X - radius, vertex.Y - radius, radius * 2, radius * 2);
                 }
 
-                for (var index = 0; index < curve.Points.Count; index++)
-                {
-                    var point = curve.Points[index];
-                    var x = TemperatureToX(point.Temperature, plot);
-                    var y = SpeedToY(point.FanSpeed, plot);
-                    graphics.FillEllipse(index == draggedPointIndex ? selectedBrush : pointBrush,
-                        x - PointRadius, y - PointRadius,
-                        PointRadius * 2, PointRadius * 2);
-
-                    var label = point.Temperature + "°/" + point.FanSpeed + "%";
-                    var labelSize = graphics.MeasureString(label, Font);
-                    var labelX = Math.Max(plot.Left,
-                        Math.Min(plot.Right - labelSize.Width, x - labelSize.Width / 2));
-                    var labelY = y - labelSize.Height - 7;
-                    if (labelY < plot.Top)
-                        labelY = y + 7;
-                    graphics.DrawString(label, Font, pointTextBrush, labelX, labelY);
-                }
+                string label = curve.Points[i].Temperature + "° · " + curve.Points[i].FanSpeed + "%";
+                var size = TextRenderer.MeasureText(g, label, Font, new Size(int.MaxValue, int.MaxValue), flags);
+                int x = Math.Max(plot.Left, Math.Min(plot.Right - size.Width, (int)vertex.X - size.Width / 2));
+                int y = (int)vertex.Y - Scale(25);
+                if (y < plot.Top)
+                    y = (int)vertex.Y + Scale(12);
+                var bounds = new Rectangle(x - Scale(3), y, size.Width + Scale(6), Scale(21));
+                using (var fill = new SolidBrush(Color.FromArgb(246, 250, 255)))
+                    g.FillRectangle(fill, bounds);
+                TextRenderer.DrawText(g, label, Font, bounds, UiPalette.PrimaryDark, flags | TextFormatFlags.HorizontalCenter);
             }
-
-            using (var borderPen = new Pen(Color.FromArgb(150, 155, 160)))
-                graphics.DrawRectangle(borderPen, plot);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -139,11 +149,9 @@ namespace AsusFanControlGUI
             base.OnMouseDown(e);
             if (e.Button != MouseButtons.Left)
                 return;
-
             draggedPointIndex = HitTestPoint(e.Location);
             if (draggedPointIndex < 0)
                 return;
-
             Focus();
             Cursor = Cursors.SizeAll;
             Capture = true;
@@ -155,9 +163,7 @@ namespace AsusFanControlGUI
             base.OnMouseMove(e);
             if (draggedPointIndex < 0 || !Capture)
             {
-                Cursor = HitTestPoint(e.Location) >= 0
-                    ? Cursors.Hand
-                    : Cursors.Default;
+                Cursor = HitTestPoint(e.Location) >= 0 ? Cursors.Hand : Cursors.Default;
                 return;
             }
 
@@ -165,22 +171,11 @@ namespace AsusFanControlGUI
             var point = curve.Points[draggedPointIndex];
             var temperature = XToTemperature(e.X, plot);
             var fanSpeed = YToSpeed(e.Y, plot);
-
-            var minimumTemperature = draggedPointIndex == 0
-                ? MinimumTemperature
-                : curve.Points[draggedPointIndex - 1].Temperature + 1;
-            var maximumTemperature = draggedPointIndex == curve.Points.Count - 1
-                ? MaximumTemperature
-                : curve.Points[draggedPointIndex + 1].Temperature - 1;
-            var minimumSpeed = draggedPointIndex == 0
-                ? 0
-                : curve.Points[draggedPointIndex - 1].FanSpeed;
-            var maximumSpeed = draggedPointIndex == curve.Points.Count - 1
-                ? 100
-                : curve.Points[draggedPointIndex + 1].FanSpeed;
-
-            point.Temperature = Math.Max(minimumTemperature,
-                Math.Min(maximumTemperature, temperature));
+            var minimumTemperature = draggedPointIndex == 0 ? MinimumTemperature : curve.Points[draggedPointIndex - 1].Temperature + 1;
+            var maximumTemperature = draggedPointIndex == curve.Points.Count - 1 ? MaximumTemperature : curve.Points[draggedPointIndex + 1].Temperature - 1;
+            var minimumSpeed = draggedPointIndex == 0 ? 0 : curve.Points[draggedPointIndex - 1].FanSpeed;
+            var maximumSpeed = draggedPointIndex == curve.Points.Count - 1 ? 100 : curve.Points[draggedPointIndex + 1].FanSpeed;
+            point.Temperature = Math.Max(minimumTemperature, Math.Min(maximumTemperature, temperature));
             point.FanSpeed = Math.Max(minimumSpeed, Math.Min(maximumSpeed, fanSpeed));
             Invalidate();
         }
@@ -190,12 +185,9 @@ namespace AsusFanControlGUI
             base.OnMouseUp(e);
             if (draggedPointIndex < 0)
                 return;
-
             draggedPointIndex = -1;
             Capture = false;
-            Cursor = HitTestPoint(e.Location) >= 0
-                ? Cursors.Hand
-                : Cursors.Default;
+            Cursor = HitTestPoint(e.Location) >= 0 ? Cursors.Hand : Cursors.Default;
             Invalidate();
             CurveChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -210,8 +202,8 @@ namespace AsusFanControlGUI
         private int HitTestPoint(Point location)
         {
             var plot = GetPlotRectangle();
-            var hitDistanceSquared = PointHitRadius * PointHitRadius;
-
+            var radius = Scale(PointHitRadius);
+            var hitDistanceSquared = radius * radius;
             for (var index = 0; index < curve.Points.Count; index++)
             {
                 var point = curve.Points[index];
@@ -226,18 +218,12 @@ namespace AsusFanControlGUI
 
         private Rectangle GetPlotRectangle()
         {
-            return new Rectangle(
-                MarginLeft,
-                MarginTop,
-                Math.Max(1, Width - MarginLeft - MarginRight),
-                Math.Max(1, Height - MarginTop - MarginBottom));
+            return new Rectangle(Scale(44), Scale(44), Math.Max(1, Width - Scale(64)), Math.Max(1, Height - Scale(100)));
         }
 
         private static float TemperatureToX(double temperature, Rectangle plot)
         {
-            return (float)(plot.Left +
-                (temperature - MinimumTemperature) /
-                (MaximumTemperature - MinimumTemperature) * plot.Width);
+            return (float)(plot.Left + (temperature - MinimumTemperature) / (MaximumTemperature - MinimumTemperature) * plot.Width);
         }
 
         private static float SpeedToY(double speed, Rectangle plot)
@@ -248,9 +234,7 @@ namespace AsusFanControlGUI
         private static int XToTemperature(int x, Rectangle plot)
         {
             var position = (x - plot.Left) / (double)plot.Width;
-            return (int)Math.Round(MinimumTemperature +
-                Math.Max(0, Math.Min(1, position)) *
-                (MaximumTemperature - MinimumTemperature));
+            return (int)Math.Round(MinimumTemperature + Math.Max(0, Math.Min(1, position)) * (MaximumTemperature - MinimumTemperature));
         }
 
         private static int YToSpeed(int y, Rectangle plot)
