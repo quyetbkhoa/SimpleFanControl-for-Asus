@@ -1,0 +1,47 @@
+name: Build Windows release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Prepare packaging dependencies
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          Invoke-WebRequest https://download.sysinternals.com/files/PSTools.zip -OutFile "$env:RUNNER_TEMP\PSTools.zip"
+          Expand-Archive "$env:RUNNER_TEMP\PSTools.zip" "$env:RUNNER_TEMP\PSTools"
+          Copy-Item "$env:RUNNER_TEMP\PSTools\PsExec.exe" tools\PsExec.exe
+      - name: Build packages
+        shell: pwsh
+        run: ./scripts/build-installer.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimpleFanControl-windows-x64
+          path: dist/installer/*
+          if-no-files-found: error
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($env:GITHUB_REF_NAME -ne 'v2.4.1') { throw 'Update package and assembly versions before tagging another version.' }
+          gh release view $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output 'Release already exists; keep its validated assets unchanged.'
+            exit 0
+          }
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/installer/* | Select-Object -ExpandProperty FullName) --title "SimpleFanControl for Asus $env:GITHUB_REF_NAME" --generate-notes --verify-tag
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

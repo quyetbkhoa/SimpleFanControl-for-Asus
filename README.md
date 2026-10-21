@@ -6,6 +6,13 @@ that repository as its upstream history.
 
 ![Dashboard](docs/images/v2.4/dashboard-vi.png)
 
+## Download / Tải về
+
+Download the **Setup-x64.exe** from [GitHub Releases](https://github.com/quyetbkhoa/SimpleFanControl-for-Asus/releases/latest)
+for a normal Windows installation, or **Portable-x64.zip** to run without
+installation after extracting the entire folder. Both contain the stable PC
+version 2.4.1, including its required ASUS DLL and PsExec launcher.
+
 ## Features / Tính năng
 
 - Separate English and Vietnamese interfaces, with a flag switch at the top right.
@@ -67,6 +74,26 @@ To create a runnable package, place the official Microsoft Sysinternals
 
 The package is written to `dist\SimpleFanControl-for-Asus-v2.4.1` and includes
 SHA-256 checksums.
+
+To create a single Windows installer EXE, install Inno Setup 6 and run:
+
+```powershell
+.\scripts\build-installer.ps1
+```
+
+The installer is written to `dist\installer`. Use `-UseExistingPackage` to wrap
+the existing checksummed release without rebuilding the stable application.
+The same command also creates a portable ZIP; extract the whole ZIP and open
+`SimpleFanControlForAsus.exe`. The current .NET Framework application depends on
+native ASUS libraries and PsExec, so its executable alone is not portable.
+The Setup EXE is a single download that installs all of these dependencies.
+Setup installs the complete package in Program Files, adds a Start menu shortcut
+and an optional desktop shortcut, and registers Windows uninstall support.
+Exit the application from the tray before installing or uninstalling. Uninstall
+removes the startup task only if it points to this installation and keeps user
+settings. Enable Start with Windows inside the installed app to migrate an
+existing portable startup task. Setup requires Windows x64 and .NET Framework
+4.7.2 or newer; ASUS services and drivers must already be installed.
 
 ## Run / Chạy ứng dụng
 
